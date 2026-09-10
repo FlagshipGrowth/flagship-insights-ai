@@ -1,10 +1,5 @@
 import type { MetricRow } from "../db";
-
-export interface ChannelConnection {
-  brandId: string;
-  channel: string;
-  tokens: Record<string, unknown>; // decrypted at call time, never logged
-}
+import type { DecryptedConnection as ChannelConnection } from "../connections";
 
 /**
  * Pulls one brand's Amazon metrics (Ads + SP-API) for a given day and normalizes them into

@@ -35,8 +35,9 @@ create table users (
 );
 create index users_client_id_idx on users(client_id);
 
--- tokens are stored app-encrypted (envelope-encrypted before insert) — never plaintext,
--- and this schema does not decide the encryption scheme; that's a Phase 3 auth-adjacent decision.
+-- tokens are stored app-encrypted (envelope-encrypted before insert) — never plaintext.
+-- Scheme: AES-256-GCM via netlify/functions/lib/crypto.ts (encryptToken/decryptToken),
+-- called through lib/connections.ts — never insert/read this column directly.
 create table connections (
     id             uuid primary key default uuid_generate_v4(),
     brand_id       uuid not null references brands(id) on delete cascade,

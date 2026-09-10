@@ -1,4 +1,5 @@
-import { getDb, upsertMetrics } from "./lib/db";
+import { upsertMetrics } from "./lib/db";
+import { getConnectionsForBrand } from "./lib/connections";
 import { CHANNEL_SYNCERS } from "./lib/channels/amazon";
 
 // Keeps client-facing dashboards fast without paying for a nightly sync no one's about to
@@ -12,17 +13,13 @@ export default async (req: Request) => {
     return new Response("brandId is required", { status: 400 });
   }
 
-  const sql = getDb();
-  const connections = await sql`select brand_id, channel, tokens from connections where brand_id = ${brandId}`;
+  const connections = await getConnectionsForBrand(brandId);
   const today = new Date().toISOString().slice(0, 10);
 
-  for (const conn of connections as any[]) {
+  for (const conn of connections) {
     const syncer = CHANNEL_SYNCERS[conn.channel];
     if (!syncer) continue;
-    const rows = await syncer(
-      { brandId: conn.brand_id, channel: conn.channel, tokens: conn.tokens },
-      today
-    );
+    const rows = await syncer(conn, today);
     await upsertMetrics(rows);
   }
 };

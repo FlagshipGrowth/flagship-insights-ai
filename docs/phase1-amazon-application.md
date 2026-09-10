@@ -37,5 +37,7 @@ and it's mostly a business/legal task, not code — most of these steps need Joe
 
 ## Related open decision
 
-Token encryption scheme (app-level, before the `bytea` column in `connections`) isn't chosen
-yet — needs to be settled before this application's security review, not just before Phase 3.
+Token encryption scheme (app-level, before the `bytea` column in `connections`) has a proposed
+implementation now: AES-256-GCM envelope encryption, see `netlify/functions/lib/crypto.ts`.
+Pending Joey's sign-off (or a swap for a managed KMS) before it's exercised against a real
+connection — mention this scheme in the security review once confirmed.
