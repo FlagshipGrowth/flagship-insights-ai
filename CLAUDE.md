@@ -1,56 +1,56 @@
 # CLAUDE.md — Flagship Insights AI
 
-Read [SPEC.md](SPEC.md) in full before doing anything else in this project. It's the source of truth for scope, roadmap, and open decisions.
+Read [SPEC.md](SPEC.md) in full before doing anything else in this project. It's the source of truth for scope and open decisions; this file tracks what's actually been decided/built since, which has moved past what SPEC.md's own roadmap originally gated.
 
-## Where things stand
+## Where things stand (2026-09-10)
 
-- **2026-09-10: Joey explicitly waived the "validate Phase 0 on real data first" gate** and asked to move straight into building Phase 1+ rather than wait on a real BB-Bands export. Phase 0 (`phase0/`) is scaffolded and smoke-tested but never run against real numbers — don't treat its recommendation quality as proven.
-- BB-Bands isn't reachable through the Amazon seller analytics connector available in this account (only seller "MAC ENERGY" is bound there) — a real export would need to come from Joey directly if Phase 0 validation comes back into scope later.
-- Phase 1 (Amazon platform application) and Phase 2 (warehouse + sync scaffold) are now in progress — see the repo root for the Netlify/Postgres scaffold and `docs/phase1-amazon-application.md`.
-- Netlify site created and linked (`flagship-insights-ai`, project id `3a498d1f-2183-4821-b9eb-a64002edb33f`). Uses **Netlify DB** (`@netlify/database`), not a manually-provisioned Neon connection string — schema lives in `netlify/database/migrations/`, applied via `netlify database migrations apply` (or automatically on deploy). Don't recreate a `db/schema.sql`-style manual setup; add new migrations with `netlify database migrations new`.
-- `knowledge_chunks` (pgvector-backed) is deliberately NOT in the schema yet — it's Phase 4/5 scope (knowledge ingestion), not Phase 2. Add it as its own migration when that phase actually starts, not before.
-- Running migrations locally (`netlify database migrations apply` without `netlify dev` running) applies against a local PGlite instance, not production — that's expected and fine for verifying the SQL is valid; the same migrations apply for real on first deploy.
+- Joey explicitly waived SPEC.md §10's "validate Phase 0 on real data first" gate, then asked to **build out everything (Phase 1-5) except pieces gated on an external platform approval or app registration**, so the app is ready to "hit go" the moment approvals land. Don't re-impose either gate or ask to confirm them again.
+- What that means concretely: auth, both portals, the warehouse/sync scaffold, the insights pipeline, and the knowledge-ingestion *architecture* are meant to be genuinely built and working. What stays stubbed is only the actual external calls that need a platform's own approval: Amazon SP-API/Ads, Meta, Google, Walmart, QuickBooks, a Slack app, Google OAuth consent for Gmail, and Fathom API access.
+- Phase 0 (`phase0/`) is scaffolded and smoke-tested but was never run against real BB-Bands data — don't treat its recommendation quality as proven. BB-Bands isn't reachable through the Amazon seller analytics connector available in this account (only seller "MAC ENERGY" is bound there).
+- Netlify site is live and linked: `flagship-insights-ai` (project id `3a498d1f-2183-4821-b9eb-a64002edb33f`). Uses **Netlify DB** (`@netlify/database`) — schema lives in `netlify/database/migrations/`, applied via `netlify database migrations apply` (or automatically on deploy). Don't recreate a manual `db/schema.sql`-style setup; add new migrations with `netlify database migrations new`.
+- Local `netlify database migrations apply` runs against a local PGlite instance, which doesn't ship the `vector` (pgvector) extension — migrations touching `knowledge_chunks` can't be verified locally, only against the real production database on deploy. Say so plainly when that's the case; don't claim a pgvector migration is "verified" from a local run.
+- Auth provider is decided: **Clerk** (org-based multi-tenancy maps directly onto client + teammates; internal staff are a separate `INTERNAL_STAFF_EMAILS`-gated path, not a Clerk org). Clerk needs no approval, so it's fully wired, not stubbed.
+- Insights pipeline: the phase0 subagent+synthesis *pattern* has been ported to TypeScript (`netlify/functions/lib/insights/`) reading real `metrics_daily` aggregates and writing to the real `insights` table — this is the production implementation, not a copy of the disposable Python.
+- Knowledge-ingestion pipeline: chunking/embedding/retrieval (`netlify/functions/lib/knowledge/`) is built using Voyage AI for embeddings (Anthropic has no embeddings API). The actual Slack/Gmail/Fathom pullers are stubs — see `docs/phase4-knowledge-sources.md` for what each needs.
 
 ## Hard rules for this project
 
-- The original SPEC.md §10 gate ("nothing else starts until Phase 0 is validated") was intentionally overridden by Joey — don't reflexively re-impose it or ask to confirm it again.
-- **2026-09-10: Joey asked to build out everything (Phase 3-5 included) while the Amazon application is under review**, so it's ready to "hit go" the moment approval lands. The only things that stay stubbed are the external API/MCP connections that themselves require a platform approval or an app-registration process (Amazon SP-API/Ads, Meta, Google, Walmart, QuickBooks, Slack app, Google OAuth consent for Gmail, Fathom). Everything else — auth, portal UI, knowledge-ingestion pipeline structure, insights wiring — should actually be built and working, not just scaffolded.
-- Auth provider is decided: **Clerk** (see the auth-provider research this session). Clerk itself needs no approval — it's a normal self-serve signup, so that piece should be fully wired, not stubbed.
-- **Amazon is the only live channel.** Add other channels (Meta, Google, Walmart, QuickBooks, inventory) only as new entries in `phase0/subagents.py`'s `CHANNEL_SYSTEM_PROMPTS` — never a rewrite of the pattern. QuickBooks stays deprioritized until Joey says otherwise.
-- **Phase 0 code is disposable.** It exists to prove the subagent + synthesis pattern, not to become the production implementation. Don't over-engineer it — no premature abstractions, no error handling for cases that can't happen here.
-- **Claude Agent SDK is the long-term AI layer**, not ad hoc API calls — keep that in mind when the pattern gets carried into later phases, but Phase 0 itself can stay simple.
-- **Running `run_insight.py` for real** requires its own `ANTHROPIC_API_KEY` (separate from the Claude Code login used to build this). `test_smoke.py` uses a stubbed client and needs no key.
+- **Amazon is the only live channel** in the sync/metrics pipeline. Add other channels (Meta, Google, Walmart, QuickBooks, inventory) as new entries in the relevant `CHANNEL_SYSTEM_PROMPTS`/`CHANNEL_SYNCERS` registries — never a rewrite of the pattern. QuickBooks stays deprioritized until Joey says otherwise.
+- **Phase 0's Python (`phase0/`) is disposable** — it proved the pattern; it is not the production implementation. The real implementation is the TypeScript port in `netlify/functions/lib/insights/`. Don't try to make phase0 itself production-ready.
+- Don't wire the product's own Slack/Gmail/Fathom ingestion to *this Claude Code session's* interactive MCP connections to those tools — those are Joey's personal integrations, not a server-side OAuth app the deployed product can run unattended. The product needs its own app registrations (docs/phase4-knowledge-sources.md).
+- **Running things that call real external APIs** needs their own keys, separate from anything used to build this: `ANTHROPIC_API_KEY` (insights), `VOYAGE_API_KEY` (embeddings), Clerk keys + webhook secret, `CONNECTIONS_ENCRYPTION_KEY`. See `.env.example` for the full list and where each comes from.
+- account_manager's "assigned clients only" scoping (SPEC.md §2) isn't implemented — the internal portal currently shows every client to every staff role. Flagged in the UI itself; don't let it quietly become a real access-control gap.
 
 ## Layout
 
 ```
 flagship-insights-ai/
-├── SPEC.md                       # full project brief — read first
-├── CLAUDE.md                     # this file
+├── SPEC.md / CLAUDE.md
 ├── docs/
-│   └── phase1-amazon-application.md   # Amazon SP-API/Ads developer application checklist
-├── netlify/
-│   ├── database/migrations/      # schema — apply with `netlify database migrations apply`
-│   └── functions/
-│       ├── sync-nightly.ts             # scheduled (@daily), all connections
-│       ├── sync-on-login-background.ts # on-demand, one brand
-│       └── lib/
-│           ├── db.ts                   # Netlify DB client + metrics_daily upsert
-│           ├── crypto.ts               # AES-256-GCM envelope encryption for connections.tokens
-│           ├── connections.ts          # encrypted read/write for the connections table
-│           └── channels/amazon.ts      # per-channel syncer registry (CHANNEL_SYNCERS)
-└── phase0/
-    ├── subagents.py               # one metrics subagent per channel (CHANNEL_SYSTEM_PROMPTS)
-    ├── synthesis.py                # combines subagent findings into one recommendation
-    ├── run_insight.py              # CLI: load data → run subagent(s) → synthesize → print
-    ├── test_smoke.py               # stubbed-client test, no API key needed
-    ├── requirements.txt
-    └── sample_data/
-        └── bb_bands_amazon.json    # placeholder BB-Bands Amazon data — swap for real numbers
+│   ├── phase1-amazon-application.md   # Amazon SP-API/Ads application checklist
+│   └── phase4-knowledge-sources.md    # Slack/Gmail/Fathom app-registration checklist
+├── middleware.ts                      # Clerk route protection
+├── app/                                # Next.js portal (client + internal)
+│   ├── dashboard/                      # client view: metrics + latest insight + generate button
+│   ├── connections/                    # client view: channel connection status
+│   ├── internal/                       # staff-only: all clients/brands
+│   ├── sign-in/, sign-up/              # Clerk-hosted auth UI
+│   └── api/webhooks/clerk/             # syncs Clerk users/orgs into Postgres
+├── lib/                                # Next.js app's own db/metrics/user-context helpers
+└── netlify/
+    ├── database/migrations/            # schema — apply with `netlify database migrations apply`
+    └── functions/
+        ├── sync-nightly.ts             # scheduled (@daily), all connections
+        ├── sync-on-login-background.ts # on-demand, one brand
+        ├── generate-insights-background.ts  # subagent+synthesis → insights table
+        └── lib/
+            ├── db.ts, crypto.ts, connections.ts, metrics.ts
+            ├── channels/amazon.ts       # per-channel metrics syncer registry (stubbed pending approval)
+            └── knowledge/               # chunk/embed/retrieve + stubbed source pullers
+└── phase0/                             # disposable POC — see "Hard rules" above
 ```
 
 ## Working conventions
 
-- Keep responses and code changes scoped to Phase 0 unless explicitly told to move on.
-- When judging a recommendation's quality, call out whether it's specific to the actual numbers (SKU-level, period-over-period, causally linked) versus generic advice that could apply to any brand.
-- Flagship Growth's Meta Ads MCP access is scoped to ad account `1287113856507273` only — see the user's global memory. Not relevant to Phase 0 (Amazon-only) but applies once Meta is added.
+- When judging a recommendation's quality, call out whether it's specific to the actual numbers versus generic advice that could apply to any brand.
+- Flagship Growth's Meta Ads MCP access (this session's, for Joey's own use) is scoped to ad account `1287113856507273` only — unrelated to this product's own future Meta integration, which is a separate OAuth app entirely.
