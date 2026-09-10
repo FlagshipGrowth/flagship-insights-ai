@@ -4,6 +4,7 @@ import { getDb } from "./db";
 export type Role = "client_owner" | "client_teammate" | "account_manager" | "internal_admin";
 
 export interface UserContext {
+  id: string;
   role: Role;
   clientId: string | null;
   email: string;
@@ -16,10 +17,10 @@ export async function getUserContext(): Promise<UserContext | null> {
   if (!userId) return null;
 
   const sql = getDb();
-  const rows = await sql`select role, client_id, email from users where clerk_user_id = ${userId}`;
+  const rows = await sql`select id, role, client_id, email from users where clerk_user_id = ${userId}`;
   if (rows.length === 0) return null;
 
-  return { role: rows[0].role, clientId: rows[0].client_id, email: rows[0].email };
+  return { id: rows[0].id, role: rows[0].role, clientId: rows[0].client_id, email: rows[0].email };
 }
 
 export function isInternalStaff(ctx: UserContext): boolean {

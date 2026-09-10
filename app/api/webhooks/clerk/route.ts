@@ -2,13 +2,19 @@ import { Webhook } from "svix";
 import { headers } from "next/headers";
 import { getDb } from "@/lib/db";
 
-// INTERNAL_STAFF_EMAILS decides who becomes internal_admin on sign-up — there's no Clerk
-// "internal staff" org, so this is the simplest thing that works without asking Joey to hand-
-// edit Clerk user metadata for every hire. Revisit if the staff list outgrows an env var.
-const INTERNAL_STAFF_EMAILS = (process.env.INTERNAL_STAFF_EMAILS ?? "")
-  .split(",")
-  .map((e) => e.trim().toLowerCase())
-  .filter(Boolean);
+// INTERNAL_STAFF_EMAILS / ACCOUNT_MANAGER_EMAILS decide staff role on sign-up — there's no
+// Clerk "internal staff" org, so this is the simplest thing that works without asking Joey to
+// hand-edit Clerk user metadata for every hire. Revisit if the staff list outgrows an env var.
+// Which clients an account_manager actually sees is separate — see account_manager_assignments,
+// managed at /internal/assignments.
+function parseEmailList(envVar: string | undefined): string[] {
+  return (envVar ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+const INTERNAL_STAFF_EMAILS = parseEmailList(process.env.INTERNAL_STAFF_EMAILS);
+const ACCOUNT_MANAGER_EMAILS = parseEmailList(process.env.ACCOUNT_MANAGER_EMAILS);
 
 export async function POST(req: Request) {
   const secret = process.env.CLERK_WEBHOOK_SIGNING_SECRET;
@@ -36,10 +42,15 @@ export async function POST(req: Request) {
   switch (event.type) {
     case "user.created": {
       const email = event.data.email_addresses?.[0]?.email_address?.toLowerCase();
-      if (email && INTERNAL_STAFF_EMAILS.includes(email)) {
+      const staffRole = email && ACCOUNT_MANAGER_EMAILS.includes(email)
+        ? "account_manager"
+        : email && INTERNAL_STAFF_EMAILS.includes(email)
+          ? "internal_admin"
+          : null;
+      if (email && staffRole) {
         await sql`
           insert into users (client_id, role, email, clerk_user_id)
-          values (null, 'internal_admin', ${email}, ${event.data.id})
+          values (null, ${staffRole}, ${email}, ${event.data.id})
           on conflict (clerk_user_id) do nothing
         `;
       }

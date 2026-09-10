@@ -62,3 +62,17 @@ export async function getAllBrandsWithClients() {
     order by c.name, b.name
   `;
 }
+
+/** Same shape as getAllBrandsWithClients, but scoped to only the clients this account_manager
+ * has been assigned — see account_manager_assignments (SPEC.md §2's "assigned clients" scope). */
+export async function getAssignedBrandsWithClients(userId: string) {
+  const sql = getDb();
+  return sql`
+    select b.id as brand_id, b.name as brand_name, c.id as client_id, c.name as client_name, b.channels_enabled
+    from brands b
+    join clients c on c.id = b.client_id
+    join account_manager_assignments a on a.client_id = c.id
+    where a.user_id = ${userId}
+    order by c.name, b.name
+  `;
+}
