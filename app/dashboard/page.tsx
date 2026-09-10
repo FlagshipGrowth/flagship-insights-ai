@@ -46,6 +46,7 @@ export default async function DashboardPage({
           Team
         </a>
         <a href="/connections">Connections</a>
+        <a href={`/inventory?brand=${brand.id}`}>Inventory</a>
       </nav>
 
       <section style={{ background: "#fff", border: "1px solid #e0e0e0", padding: 16, marginBottom: 24, maxWidth: 720 }}>
