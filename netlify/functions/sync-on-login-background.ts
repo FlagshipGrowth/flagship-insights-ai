@@ -8,7 +8,8 @@ import { CHANNEL_SYNCERS } from "./lib/channels/amazon";
 // function cap. There's no auth layer yet (Phase 3), so this takes brandId directly rather
 // than resolving it from a session.
 export default async (req: Request) => {
-  const { brandId } = await req.json();
+  const body = (await req.json()) as { brandId?: string };
+  const { brandId } = body;
   if (!brandId) {
     return new Response("brandId is required", { status: 400 });
   }
