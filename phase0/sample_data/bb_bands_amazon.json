@@ -1,0 +1,65 @@
+{
+  "_note": "PLACEHOLDER — not real BB-Bands data. Replace every value below with a real Amazon Business Report / SellerRise / Seller Central export before running run_insight.py for real.",
+  "brand": "BB-Bands",
+  "channel": "amazon",
+  "currency": "USD",
+  "current_period": {
+    "label": "last 30 days (placeholder)",
+    "start_date": "2026-08-11",
+    "end_date": "2026-09-09",
+    "sales": 18500.00,
+    "units_sold": 740,
+    "sessions": 21000,
+    "page_views": 33000,
+    "conversion_rate": 0.0352,
+    "ad_spend": 4200.00,
+    "acos": 0.227,
+    "tacos": 0.227,
+    "avg_selling_price": 25.00,
+    "refund_rate": 0.021,
+    "fba_inventory_units": 1150
+  },
+  "previous_period": {
+    "label": "prior 30 days (placeholder)",
+    "start_date": "2026-07-12",
+    "end_date": "2026-08-10",
+    "sales": 21300.00,
+    "units_sold": 852,
+    "sessions": 19500,
+    "page_views": 30500,
+    "conversion_rate": 0.0437,
+    "ad_spend": 3950.00,
+    "acos": 0.185,
+    "tacos": 0.185,
+    "avg_selling_price": 25.00,
+    "refund_rate": 0.018,
+    "fba_inventory_units": 2100
+  },
+  "trailing_90_day_trend": {
+    "label": "weekly sales, oldest to most recent (placeholder)",
+    "weekly_sales": [5100, 5400, 5600, 5300, 5000, 4950, 5200, 4700, 4500, 4300, 4600, 4350, 4100],
+    "weekly_ad_spend": [850, 900, 880, 910, 920, 930, 940, 950, 960, 970, 980, 990, 1000]
+  },
+  "top_asins": [
+    {
+      "asin": "B0PLACEHOLDER1",
+      "title": "BB-Bands Resistance Band Set (placeholder)",
+      "current_sales": 11200.00,
+      "previous_sales": 14100.00,
+      "current_conversion_rate": 0.031,
+      "previous_conversion_rate": 0.045,
+      "current_fba_inventory_units": 300,
+      "days_of_stock_remaining": 9
+    },
+    {
+      "asin": "B0PLACEHOLDER2",
+      "title": "BB-Bands + Travel Bag Bundle (placeholder)",
+      "current_sales": 7300.00,
+      "previous_sales": 7200.00,
+      "current_conversion_rate": 0.041,
+      "previous_conversion_rate": 0.040,
+      "current_fba_inventory_units": 850,
+      "days_of_stock_remaining": 45
+    }
+  ]
+}

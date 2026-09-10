@@ -1,0 +1,6 @@
+[build]
+  command = "npm run typecheck"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
