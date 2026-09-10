@@ -43,6 +43,17 @@ export async function getBrandsForClient(clientId: string) {
   return sql`select id, name, channels_enabled from brands where client_id = ${clientId} order by name`;
 }
 
+export async function getLatestInsight(brandId: string) {
+  const sql = getDb();
+  const rows = await sql`
+    select summary, created_at from insights
+    where brand_id = ${brandId}
+    order by created_at desc
+    limit 1
+  `;
+  return rows[0] ?? null;
+}
+
 export async function getAllBrandsWithClients() {
   const sql = getDb();
   return sql`

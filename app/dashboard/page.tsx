@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { getUserContext, isInternalStaff } from "@/lib/user-context";
-import { getBrandsForClient, getBrandMetrics, PERIODS, type Period } from "@/lib/metrics";
+import { getBrandsForClient, getBrandMetrics, getLatestInsight, PERIODS, type Period } from "@/lib/metrics";
+import { GenerateInsightButton } from "./GenerateInsightButton";
 
 export default async function DashboardPage({
   searchParams,
@@ -27,6 +28,7 @@ export default async function DashboardPage({
   }
 
   const metrics = await getBrandMetrics(brand.id, period);
+  const latestInsight = await getLatestInsight(brand.id);
 
   return (
     <main style={{ padding: 24 }}>
@@ -44,6 +46,22 @@ export default async function DashboardPage({
           Connections
         </a>
       </nav>
+
+      <section style={{ background: "#fff", border: "1px solid #e0e0e0", padding: 16, marginBottom: 24, maxWidth: 720 }}>
+        <h2 style={{ marginTop: 0 }}>Latest recommendation</h2>
+        {latestInsight ? (
+          <>
+            <p>{latestInsight.summary}</p>
+            <small>Generated {new Date(latestInsight.created_at).toLocaleString()}</small>
+          </>
+        ) : (
+          <p>No recommendation generated yet.</p>
+        )}
+        <div style={{ marginTop: 8 }}>
+          <GenerateInsightButton brandId={brand.id} />
+        </div>
+      </section>
+
       {metrics.length === 0 ? (
         <p>
           No metrics yet for this period —{" "}
