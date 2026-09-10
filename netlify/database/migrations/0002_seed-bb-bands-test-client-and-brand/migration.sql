@@ -1,8 +1,5 @@
--- First rows to seed once db/schema.sql has been applied — just enough for the sync
--- functions to have a real brand_id to target. Run after schema.sql:
---   psql "$DATABASE_URL" -f db/seed.sql
---
--- Uses a fixed client id so this file is idempotent (safe to re-run).
+-- First rows so the sync functions have a real brand_id to target. Fixed ids so this
+-- stays idempotent if ever re-run outside the normal migration flow.
 insert into clients (id, name, plan, status)
 values ('00000000-0000-0000-0000-000000000001', 'BB-Bands', 'internal-test', 'active')
 on conflict (id) do nothing;

@@ -23,7 +23,7 @@ and it's mostly a business/legal task, not code — most of these steps need Joe
    > platform can display their own performance data and AI-generated recommendations back to
    > them. Flagship never accesses a client's account except through that client's own
    > authorized connection, and each client only ever sees their own data.
-5. **Security review prep**: SP-API/Ads review will ask about token storage. Point to `connections.tokens` in `db/schema.sql` — tokens are stored encrypted at the application layer (encryption scheme still TBD, needs picking before this goes further — see SPEC.md §11 open items) and scoped one row per brand per channel.
+5. **Security review prep**: SP-API/Ads review will ask about token storage. Point to `connections.tokens` in `netlify/database/migrations/0001_initial-warehouse-schema/migration.sql` — tokens are stored encrypted at the application layer (AES-256-GCM, see `netlify/functions/lib/crypto.ts`) and scoped one row per brand per channel.
 6. **Submit and track status** — lead time is "weeks" per SPEC.md §9. Update the status table below as it moves.
 
 ## Status

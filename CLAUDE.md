@@ -7,6 +7,9 @@ Read [SPEC.md](SPEC.md) in full before doing anything else in this project. It's
 - **2026-09-10: Joey explicitly waived the "validate Phase 0 on real data first" gate** and asked to move straight into building Phase 1+ rather than wait on a real BB-Bands export. Phase 0 (`phase0/`) is scaffolded and smoke-tested but never run against real numbers — don't treat its recommendation quality as proven.
 - BB-Bands isn't reachable through the Amazon seller analytics connector available in this account (only seller "MAC ENERGY" is bound there) — a real export would need to come from Joey directly if Phase 0 validation comes back into scope later.
 - Phase 1 (Amazon platform application) and Phase 2 (warehouse + sync scaffold) are now in progress — see the repo root for the Netlify/Postgres scaffold and `docs/phase1-amazon-application.md`.
+- Netlify site created and linked (`flagship-insights-ai`, project id `3a498d1f-2183-4821-b9eb-a64002edb33f`). Uses **Netlify DB** (`@netlify/database`), not a manually-provisioned Neon connection string — schema lives in `netlify/database/migrations/`, applied via `netlify database migrations apply` (or automatically on deploy). Don't recreate a `db/schema.sql`-style manual setup; add new migrations with `netlify database migrations new`.
+- `knowledge_chunks` (pgvector-backed) is deliberately NOT in the schema yet — it's Phase 4/5 scope (knowledge ingestion), not Phase 2. Add it as its own migration when that phase actually starts, not before.
+- Running migrations locally (`netlify database migrations apply` without `netlify dev` running) applies against a local PGlite instance, not production — that's expected and fine for verifying the SQL is valid; the same migrations apply for real on first deploy.
 
 ## Hard rules for this project
 
@@ -23,6 +26,18 @@ Read [SPEC.md](SPEC.md) in full before doing anything else in this project. It's
 flagship-insights-ai/
 ├── SPEC.md                       # full project brief — read first
 ├── CLAUDE.md                     # this file
+├── docs/
+│   └── phase1-amazon-application.md   # Amazon SP-API/Ads developer application checklist
+├── netlify/
+│   ├── database/migrations/      # schema — apply with `netlify database migrations apply`
+│   └── functions/
+│       ├── sync-nightly.ts             # scheduled (@daily), all connections
+│       ├── sync-on-login-background.ts # on-demand, one brand
+│       └── lib/
+│           ├── db.ts                   # Netlify DB client + metrics_daily upsert
+│           ├── crypto.ts               # AES-256-GCM envelope encryption for connections.tokens
+│           ├── connections.ts          # encrypted read/write for the connections table
+│           └── channels/amazon.ts      # per-channel syncer registry (CHANNEL_SYNCERS)
 └── phase0/
     ├── subagents.py               # one metrics subagent per channel (CHANNEL_SYSTEM_PROMPTS)
     ├── synthesis.py                # combines subagent findings into one recommendation

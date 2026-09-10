@@ -8,13 +8,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@netlify/functions": "^3.0.0",
+    "@anthropic-ai/sdk": "^0.32.0",
     "@neondatabase/serverless": "^0.10.0",
-    "@anthropic-ai/sdk": "^0.32.0"
+    "@netlify/database": "^2.0.1",
+    "@netlify/functions": "^3.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.6.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
   },
   "allowScripts": {
     "esbuild@0.25.5": true
