@@ -5,7 +5,7 @@ import { getAllBrandsWithClients } from "@/lib/metrics";
 
 export default async function InternalPage() {
   const ctx = await getUserContext();
-  if (!ctx) redirect("/sign-in");
+  if (!ctx) redirect("/onboarding");
   if (!isInternalStaff(ctx)) redirect("/dashboard");
 
   const rows = await getAllBrandsWithClients();

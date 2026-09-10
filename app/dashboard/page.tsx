@@ -10,7 +10,7 @@ export default async function DashboardPage({
   searchParams: Promise<{ brand?: string; period?: string }>;
 }) {
   const ctx = await getUserContext();
-  if (!ctx) redirect("/sign-in");
+  if (!ctx) redirect("/onboarding");
   if (isInternalStaff(ctx)) redirect("/internal");
   if (!ctx.clientId) {
     return <main style={{ padding: 24 }}>Your account isn't linked to a client yet — contact Flagship Growth.</main>;
@@ -42,9 +42,10 @@ export default async function DashboardPage({
             {p.toUpperCase()}
           </a>
         ))}
-        <a href="/connections" style={{ marginLeft: "auto" }}>
-          Connections
+        <a href="/organization" style={{ marginLeft: "auto" }}>
+          Team
         </a>
+        <a href="/connections">Connections</a>
       </nav>
 
       <section style={{ background: "#fff", border: "1px solid #e0e0e0", padding: 16, marginBottom: 24, maxWidth: 720 }}>

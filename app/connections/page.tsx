@@ -14,7 +14,7 @@ const PLATFORM_STATUS: Record<string, string> = {
 
 export default async function ConnectionsPage() {
   const ctx = await getUserContext();
-  if (!ctx) redirect("/sign-in");
+  if (!ctx) redirect("/onboarding");
   if (isInternalStaff(ctx)) redirect("/internal");
   if (!ctx.clientId) {
     return <main style={{ padding: 24 }}>Your account isn't linked to a client yet.</main>;
