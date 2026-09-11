@@ -208,3 +208,13 @@ td {
   background: var(--accent-lime);
   color: var(--ink);
 }
+
+.badge-active {
+  background: var(--accent-blue);
+  color: var(--paper);
+}
+
+.badge-discontinued {
+  background: var(--paper-2);
+  color: var(--muted);
+}

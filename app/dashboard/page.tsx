@@ -41,6 +41,7 @@ export default async function DashboardPage({
         <a href="/organization">Team</a>
         <a href="/connections">Connections</a>
         <a href={`/inventory?brand=${brand.id}`}>Inventory</a>
+        <a href={`/catalog?brand=${brand.id}`}>Catalog</a>
         <a href={`/seo?brand=${brand.id}`}>SEO</a>
       </nav>
 

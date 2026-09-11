@@ -128,6 +128,7 @@ export default async function BrandHubPage({
           {[
             { label: "Product optimizations (SEO)", href: `/internal/seo/${brandId}`, available: true },
             { label: "Inventory", href: `/internal/brand/${brandId}/inventory`, available: true },
+            { label: "Catalog", href: `/internal/brand/${brandId}/catalog`, available: true },
             { label: "Item-level margin calculator", href: `/internal/brand/${brandId}/margin-calculator`, available: true },
             { label: "Forecast", href: `/internal/brand/${brandId}/forecast`, available: false },
             { label: "Reimbursements", href: `/internal/brand/${brandId}/reimbursements`, available: false },
