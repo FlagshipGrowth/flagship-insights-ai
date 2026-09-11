@@ -124,9 +124,31 @@ export default async function BrandHubPage({
 
       <section style={{ marginBottom: 32 }}>
         <h2>Tools</h2>
-        <div className="card" style={{ maxWidth: 640, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span>Product optimizations (SEO)</span>
-          <a href={`/internal/seo/${brandId}`}>Open →</a>
+        <div className="card" style={{ maxWidth: 640, padding: 0, overflow: "hidden" }}>
+          {[
+            { label: "Product optimizations (SEO)", href: `/internal/seo/${brandId}`, available: true },
+            { label: "Inventory", href: `/internal/brand/${brandId}/inventory`, available: true },
+            { label: "Item-level margin calculator", href: `/internal/brand/${brandId}/margin-calculator`, available: true },
+            { label: "Forecast", href: `/internal/brand/${brandId}/forecast`, available: false },
+            { label: "Reimbursements", href: `/internal/brand/${brandId}/reimbursements`, available: false },
+            { label: "Reviews", href: `/internal/brand/${brandId}/reviews`, available: false },
+          ].map((tool, i, arr) => (
+            <div
+              key={tool.href}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "14px 20px",
+                borderBottom: i < arr.length - 1 ? "1px solid var(--paper-2)" : "none",
+              }}
+            >
+              <span>
+                {tool.label} {!tool.available && <Badge variant="pending">pending Amazon</Badge>}
+              </span>
+              <a href={tool.href}>Open →</a>
+            </div>
+          ))}
         </div>
       </section>
 
