@@ -11,7 +11,7 @@ export default async function OrganizationPage() {
   if (isInternalStaff(ctx)) redirect("/internal");
 
   return (
-    <main style={{ padding: 24, display: "flex", justifyContent: "center" }}>
+    <main style={{ display: "flex", justifyContent: "center" }}>
       <OrganizationProfile />
     </main>
   );

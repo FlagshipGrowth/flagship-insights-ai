@@ -17,24 +17,37 @@ export default async function ConnectionsPage() {
   if (!ctx) redirect("/onboarding");
   if (isInternalStaff(ctx)) redirect("/internal");
   if (!ctx.clientId) {
-    return <main style={{ padding: 24 }}>Your account isn't linked to a client yet.</main>;
+    return <main>Your account isn't linked to a client yet.</main>;
   }
 
   const brands = await getBrandsForClient(ctx.clientId);
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1>Connections</h1>
-      <p>
-        <a href="/dashboard">&larr; Back to dashboard</a>
-      </p>
+    <main>
+      <a href="/dashboard" className="back-link">
+        &larr; Back to dashboard
+      </a>
+      <h1 style={{ marginBottom: 24 }}>Connections</h1>
       {brands.map((b: any) => (
-        <section key={b.id} style={{ marginBottom: 24 }}>
+        <section key={b.id} className="card" style={{ marginBottom: 24, maxWidth: 640 }}>
           <h2>{b.name}</h2>
-          <ul>
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {Object.entries(PLATFORM_STATUS).map(([channel, status]) => (
-              <li key={channel} style={{ marginBottom: 8 }}>
-                <strong>{channel}</strong>: {status}{" "}
+              <li
+                key={channel}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "10px 0",
+                  borderBottom: "1px solid var(--paper-2)",
+                }}
+              >
+                <span>
+                  <strong style={{ textTransform: "capitalize" }}>{channel}</strong>
+                  <br />
+                  <small>{status}</small>
+                </span>
                 <button disabled title="Not available until the platform application is approved">
                   Connect
                 </button>

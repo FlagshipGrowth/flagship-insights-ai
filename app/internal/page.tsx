@@ -12,41 +12,53 @@ export default async function InternalPage() {
     ctx.role === "account_manager" ? await getAssignedBrandsWithClients(ctx.id) : await getAllBrandsWithClients();
 
   return (
-    <main style={{ padding: 24 }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <main>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <h1>{ctx.role === "account_manager" ? "Your assigned clients" : "All clients (internal)"}</h1>
         <UserButton />
       </header>
+
       {ctx.role === "internal_admin" && (
-        <p>
+        <nav className="top-nav">
           <a href="/internal/assignments">Manage account manager assignments</a>
+        </nav>
+      )}
+
+      {ctx.role === "account_manager" && (
+        <p style={{ color: "var(--muted)" }}>
+          <small>
+            Note: "assigned clients only" scoping isn't fully audited yet — flag anything that looks off.
+          </small>
         </p>
       )}
+
       {rows.length === 0 ? (
         <p>{ctx.role === "account_manager" ? "No clients assigned to you yet." : "No clients yet."}</p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Client</th>
-              <th>Brand</th>
-              <th>Channels</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r: any) => (
-              <tr key={r.brand_id}>
-                <td>{r.client_name}</td>
-                <td>{r.brand_name}</td>
-                <td>{(r.channels_enabled as string[]).join(", ") || "—"}</td>
-                <td>
-                  <a href={`/internal/seo/${r.brand_id}`}>SEO</a>
-                </td>
+        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Brand</th>
+                <th>Channels</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((r: any) => (
+                <tr key={r.brand_id}>
+                  <td>{r.client_name}</td>
+                  <td>{r.brand_name}</td>
+                  <td>{(r.channels_enabled as string[]).join(", ") || "—"}</td>
+                  <td>
+                    <a href={`/internal/seo/${r.brand_id}`}>SEO →</a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </main>
   );

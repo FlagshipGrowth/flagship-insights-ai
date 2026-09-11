@@ -13,7 +13,7 @@ export default async function DashboardPage({
   if (!ctx) redirect("/onboarding");
   if (isInternalStaff(ctx)) redirect("/internal");
   if (!ctx.clientId) {
-    return <main style={{ padding: 24 }}>Your account isn't linked to a client yet — contact Flagship Growth.</main>;
+    return <main>Your account isn't linked to a client yet — contact Flagship Growth.</main>;
   }
 
   const brands = await getBrandsForClient(ctx.clientId);
@@ -24,34 +24,36 @@ export default async function DashboardPage({
   const period: Period = (PERIODS as string[]).includes(periodParam ?? "") ? (periodParam as Period) : "mtd";
 
   if (!brand) {
-    return <main style={{ padding: 24 }}>No brands are set up on your account yet.</main>;
+    return <main>No brands are set up on your account yet.</main>;
   }
 
   const metrics = await getBrandMetrics(brand.id, period);
   const latestInsight = await getLatestInsight(brand.id);
 
   return (
-    <main style={{ padding: 24 }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <main>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <h1>{brand.name}</h1>
         <UserButton />
       </header>
-      <nav style={{ marginBottom: 16, display: "flex", gap: 16 }}>
-        {PERIODS.map((p) => (
-          <a key={p} href={`/dashboard?brand=${brand.id}&period=${p}`} style={{ fontWeight: p === period ? 700 : 400 }}>
-            {p.toUpperCase()}
-          </a>
-        ))}
-        <a href="/organization" style={{ marginLeft: "auto" }}>
-          Team
-        </a>
+
+      <nav className="top-nav">
+        <a href="/organization">Team</a>
         <a href="/connections">Connections</a>
         <a href={`/inventory?brand=${brand.id}`}>Inventory</a>
         <a href={`/seo?brand=${brand.id}`}>SEO</a>
       </nav>
 
-      <section style={{ border: "1px solid var(--muted)", padding: 16, marginBottom: 24, maxWidth: 720 }}>
-        <h2 style={{ marginTop: 0 }}>Latest recommendation</h2>
+      <nav className="pill-nav">
+        {PERIODS.map((p) => (
+          <a key={p} href={`/dashboard?brand=${brand.id}&period=${p}`} className={p === period ? "active" : ""}>
+            {p.toUpperCase()}
+          </a>
+        ))}
+      </nav>
+
+      <section className="card" style={{ marginBottom: 24, maxWidth: 720 }}>
+        <h2>Latest recommendation</h2>
         {latestInsight ? (
           <>
             <p>{latestInsight.summary}</p>
@@ -73,24 +75,26 @@ export default async function DashboardPage({
             : "sync hasn't produced data for this range yet."}
         </p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Channel</th>
-              <th>Metric</th>
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {metrics.map((m: any, i: number) => (
-              <tr key={i}>
-                <td>{m.channel}</td>
-                <td>{m.metric_key}</td>
-                <td>{m.total}</td>
+        <div className="card" style={{ padding: 0, maxWidth: 720, overflow: "hidden" }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Channel</th>
+                <th>Metric</th>
+                <th>Total</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {metrics.map((m: any, i: number) => (
+                <tr key={i}>
+                  <td>{m.channel}</td>
+                  <td>{m.metric_key}</td>
+                  <td>{m.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </main>
   );

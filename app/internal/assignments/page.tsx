@@ -38,17 +38,18 @@ export default async function AssignmentsPage() {
   const assignedSet = new Set(assignments.map((a: any) => `${a.user_id}:${a.client_id}`));
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1>Account manager assignments</h1>
-      <p>
-        <a href="/internal">&larr; Back</a>
-      </p>
+    <main>
+      <a href="/internal" className="back-link">
+        &larr; Back
+      </a>
+      <h1 style={{ marginBottom: 24 }}>Account manager assignments</h1>
       {managers.length === 0 ? (
         <p>No users with the account_manager role yet — they show up here once they sign up and someone sets their role.</p>
       ) : clients.length === 0 ? (
         <p>No clients yet.</p>
       ) : (
         <form action={saveAssignments}>
+          <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}>
           <table>
             <thead>
               <tr>
@@ -75,9 +76,8 @@ export default async function AssignmentsPage() {
               ))}
             </tbody>
           </table>
-          <button type="submit" style={{ marginTop: 16 }}>
-            Save assignments
-          </button>
+          </div>
+          <button type="submit">Save assignments</button>
         </form>
       )}
     </main>

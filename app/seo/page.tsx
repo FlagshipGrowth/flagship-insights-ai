@@ -4,6 +4,7 @@ import { getUserContext, isInternalStaff } from "@/lib/user-context";
 import { getBrandsForClient } from "@/lib/metrics";
 import { getProductOptimizations, brandBelongsToClient } from "@/lib/seo";
 import { getDb } from "@/lib/db";
+import { Badge } from "@/components/Badge";
 
 async function reviewOptimization(formData: FormData) {
   "use server";
@@ -31,7 +32,7 @@ export default async function SeoPage({ searchParams }: { searchParams: Promise<
   if (!ctx) redirect("/onboarding");
   if (isInternalStaff(ctx)) redirect("/internal");
   if (!ctx.clientId) {
-    return <main style={{ padding: 24 }}>Your account isn't linked to a client yet.</main>;
+    return <main>Your account isn't linked to a client yet.</main>;
   }
 
   const brands = await getBrandsForClient(ctx.clientId);
@@ -39,57 +40,59 @@ export default async function SeoPage({ searchParams }: { searchParams: Promise<
   const brand = (brands.find((b: any) => b.id === brandParam) ?? brands[0]) as { id: string; name: string } | undefined;
 
   if (!brand) {
-    return <main style={{ padding: 24 }}>No brands are set up on your account yet.</main>;
+    return <main>No brands are set up on your account yet.</main>;
   }
 
   const optimizations = await getProductOptimizations(brand.id);
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1>Product optimizations — {brand.name}</h1>
-      <p>
-        <a href="/dashboard">&larr; Back to dashboard</a>
-      </p>
+    <main>
+      <a href="/dashboard" className="back-link">
+        &larr; Back to dashboard
+      </a>
+      <h1 style={{ marginBottom: 24 }}>Product optimizations — {brand.name}</h1>
 
       {optimizations.length === 0 ? (
         <p>Nothing to review yet.</p>
       ) : (
-        optimizations.map((r: any) => (
-          <section
-            key={r.id}
-            style={{ border: "1px solid var(--muted)", padding: 16, marginBottom: 16, maxWidth: 640 }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <strong>{r.title}</strong>
-              <span>
-                {r.category.replace("_", " ")} · {r.priority} priority · {r.status}
-              </span>
-            </div>
-            <p>{r.description}</p>
-            {r.status === "pending" ? (
-              <form action={reviewOptimization} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-                <input type="hidden" name="optimizationId" value={r.id} />
-                <input type="hidden" name="brandId" value={brand.id} />
-                <label style={{ flex: 1 }}>
-                  Comment (optional)
-                  <br />
-                  <input name="comment" style={{ width: "100%" }} />
-                </label>
-                <button type="submit" name="status" value="approved">
-                  Approve
-                </button>
-                <button type="submit" name="status" value="rejected">
-                  Reject
-                </button>
-              </form>
-            ) : (
-              <small>
-                {r.status} {r.reviewed_at ? `on ${new Date(r.reviewed_at).toLocaleDateString()}` : ""}
-                {r.client_comment ? ` — "${r.client_comment}"` : ""}
-              </small>
-            )}
-          </section>
-        ))
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 640 }}>
+          {optimizations.map((r: any) => (
+            <section key={r.id} className="card">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 12 }}>
+                <strong>{r.title}</strong>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <Badge variant={r.priority}>{r.priority}</Badge>
+                  <Badge variant={r.status}>{r.status}</Badge>
+                </div>
+              </div>
+              <p style={{ color: "var(--muted)" }}>
+                {r.category.replace("_", " ")} · {r.description}
+              </p>
+              {r.status === "pending" ? (
+                <form action={reviewOptimization} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+                  <input type="hidden" name="optimizationId" value={r.id} />
+                  <input type="hidden" name="brandId" value={brand.id} />
+                  <label style={{ flex: 1 }}>
+                    Comment (optional)
+                    <br />
+                    <input name="comment" style={{ width: "100%" }} />
+                  </label>
+                  <button type="submit" name="status" value="approved">
+                    Approve
+                  </button>
+                  <button type="submit" name="status" value="rejected" className="secondary">
+                    Reject
+                  </button>
+                </form>
+              ) : (
+                <small>
+                  {r.reviewed_at ? `Reviewed ${new Date(r.reviewed_at).toLocaleDateString()}` : ""}
+                  {r.client_comment ? ` — "${r.client_comment}"` : ""}
+                </small>
+              )}
+            </section>
+          ))}
+        </div>
       )}
     </main>
   );

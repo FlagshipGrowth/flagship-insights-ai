@@ -14,7 +14,7 @@ export default async function OnboardingPage() {
   if (ctx) redirect(ctx.clientId ? "/dashboard" : "/internal");
 
   return (
-    <main style={{ padding: 24, maxWidth: 480 }}>
+    <main style={{ maxWidth: 480 }}>
       <h1>Set up your organization</h1>
       <p>
         Create your organization to get started, or ask whoever invited you to add you to

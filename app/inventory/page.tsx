@@ -38,7 +38,7 @@ export default async function InventoryPage({
   if (!ctx) redirect("/onboarding");
   if (isInternalStaff(ctx)) redirect("/internal");
   if (!ctx.clientId) {
-    return <main style={{ padding: 24 }}>Your account isn't linked to a client yet.</main>;
+    return <main>Your account isn't linked to a client yet.</main>;
   }
 
   const brands = await getBrandsForClient(ctx.clientId);
@@ -46,7 +46,7 @@ export default async function InventoryPage({
   const brand = (brands.find((b: any) => b.id === brandParam) ?? brands[0]) as { id: string; name: string } | undefined;
 
   if (!brand) {
-    return <main style={{ padding: 24 }}>No brands are set up on your account yet.</main>;
+    return <main>No brands are set up on your account yet.</main>;
   }
 
   const sql = getDb();
@@ -58,13 +58,13 @@ export default async function InventoryPage({
   `;
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1>Inventory — {brand.name}</h1>
-      <p>
-        <a href="/dashboard">&larr; Back to dashboard</a>
-      </p>
+    <main>
+      <a href="/dashboard" className="back-link">
+        &larr; Back to dashboard
+      </a>
+      <h1 style={{ marginBottom: 24 }}>Inventory — {brand.name}</h1>
 
-      <section style={{ marginBottom: 24 }}>
+      <section className="card" style={{ marginBottom: 24, maxWidth: 640 }}>
         <h2>Log manual inventory</h2>
         <p>
           <small>
@@ -93,6 +93,7 @@ export default async function InventoryPage({
         {snapshots.length === 0 ? (
           <p>No inventory recorded yet.</p>
         ) : (
+          <div className="card" style={{ padding: 0, overflow: "hidden", maxWidth: 640 }}>
           <table>
             <thead>
               <tr>
@@ -113,6 +114,7 @@ export default async function InventoryPage({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </main>

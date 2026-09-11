@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { getUserContext, isInternalStaff, canStaffAccessBrand } from "@/lib/user-context";
 import { getProductOptimizations, getBrandName, OPTIMIZATION_CATEGORIES } from "@/lib/seo";
 import { getDb } from "@/lib/db";
+import { Badge } from "@/components/Badge";
 
 async function createOptimization(brandId: string, formData: FormData) {
   "use server";
@@ -38,40 +39,42 @@ export default async function InternalSeoPage({ params }: { params: Promise<{ br
   const boundCreate = createOptimization.bind(null, brandId);
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1>SEO — {brandName}</h1>
-      <p>
-        <a href="/internal">&larr; Back</a>
-      </p>
+    <main>
+      <a href="/internal" className="back-link">
+        &larr; Back
+      </a>
+      <h1 style={{ marginBottom: 24 }}>Product optimizations — {brandName}</h1>
 
-      <section style={{ marginBottom: 24, maxWidth: 640 }}>
+      <section className="card" style={{ marginBottom: 24, maxWidth: 640 }}>
         <h2>New product optimization</h2>
-        <form action={boundCreate} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <form action={boundCreate} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <label>
             Title
             <br />
             <input name="title" required style={{ width: "100%" }} />
           </label>
-          <label>
-            Category
-            <br />
-            <select name="category" defaultValue="on_page">
-              {OPTIMIZATION_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c.replace("_", " ")}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Priority
-            <br />
-            <select name="priority" defaultValue="medium">
-              <option value="low">low</option>
-              <option value="medium">medium</option>
-              <option value="high">high</option>
-            </select>
-          </label>
+          <div style={{ display: "flex", gap: 12 }}>
+            <label style={{ flex: 1 }}>
+              Category
+              <br />
+              <select name="category" defaultValue="on_page" style={{ width: "100%" }}>
+                {OPTIMIZATION_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c.replace("_", " ")}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ flex: 1 }}>
+              Priority
+              <br />
+              <select name="priority" defaultValue="medium" style={{ width: "100%" }}>
+                <option value="low">low</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+              </select>
+            </label>
+          </div>
           <label>
             Description
             <br />
@@ -88,28 +91,34 @@ export default async function InternalSeoPage({ params }: { params: Promise<{ br
         {optimizations.length === 0 ? (
           <p>None yet.</p>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Category</th>
-                <th>Priority</th>
-                <th>Status</th>
-                <th>Client comment</th>
-              </tr>
-            </thead>
-            <tbody>
-              {optimizations.map((r: any) => (
-                <tr key={r.id}>
-                  <td>{r.title}</td>
-                  <td>{r.category}</td>
-                  <td>{r.priority}</td>
-                  <td>{r.status}</td>
-                  <td>{r.client_comment ?? "—"}</td>
+          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Category</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th>Client comment</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {optimizations.map((r: any) => (
+                  <tr key={r.id}>
+                    <td>{r.title}</td>
+                    <td>{r.category.replace("_", " ")}</td>
+                    <td>
+                      <Badge variant={r.priority}>{r.priority}</Badge>
+                    </td>
+                    <td>
+                      <Badge variant={r.status}>{r.status}</Badge>
+                    </td>
+                    <td>{r.client_comment ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </main>
