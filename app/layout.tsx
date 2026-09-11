@@ -39,7 +39,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       }}
     >
       <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable}`}>
-        <body>{children}</body>
+        <body>
+          <header style={{ padding: "12px 24px", borderBottom: "1px solid var(--paper-2)" }}>
+            <a href="/">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/brand/lockup-ink.svg" alt="Flagship Growth" style={{ height: 28 }} />
+            </a>
+          </header>
+          {children}
+        </body>
       </html>
     </ClerkProvider>
   );
