@@ -109,8 +109,20 @@ function mapHeaderRow(headers: string[]): ColumnMap {
     return i === -1 ? undefined : i;
   };
 
+  // Dimension columns are the trickiest: some sheets merge a "Unit Dimension"/"Case Dimension"
+  // group header with the ASIN row and push the actual "Weight/L/W/H" sub-labels to the row
+  // below (see mergeHeaderRows) — after merging, those become e.g. "case dimension weight" /
+  // "unit dimension l". Match on the group keyword plus a bare-letter word boundary rather than
+  // requiring an exact "weight"/"l" cell, since a real column is rarely that bare on its own.
+  const isCase = (h: string) => h.includes("case");
+  const bare = (h: string, letter: string) => new RegExp(`\\b${letter}\\b`).test(h);
+
   const map: ColumnMap = {
-    asin: find((h) => h === "asin"),
+    // startsWith, not includes: a couple of brands write "ASIN (Child)", but a sheet with an
+    // unrelated column like "Merchant Existing Asin" (seen on WINK's linked spreadsheet, which
+    // turned out to point at a raw Amazon bulk-upload tab rather than a real spec sheet) should
+    // NOT be mistaken for a product-spec header row just because "asin" appears in it somewhere.
+    asin: find((h) => h.startsWith("asin")),
     title: find((h) => h.includes("product name") || h === "title"),
     category: find((h) => h === "category"),
     subCategory: find((h) => h.includes("sub category") || h.includes("subcategory")),
@@ -118,18 +130,40 @@ function mapHeaderRow(headers: string[]): ColumnMap {
     upc: find((h) => h.includes("upc") || h.includes("ean") || h.includes("isbn")),
     costLanded: find((h) => h.includes("cost")),
     msrp: find((h) => h.includes("msrp")),
-    unitWeight: find((h) => h === "weight"),
-    caseQty: find((h) => h.includes("case") && (h.includes("qty") || h.includes("quantity") || h.includes("count"))),
-    caseWeight: find((h) => h.includes("case") && h.includes("weight")),
-    caseLength: find((h) => h.includes("case") && h.includes("length")),
-    caseWidth: find((h) => h.includes("case") && h.includes("width")),
-    caseHeight: find((h) => h.includes("case") && h.includes("height")),
+    unitWeight: find((h) => h.includes("weight") && !isCase(h)),
+    caseQty: find((h) => isCase(h) && (h.includes("qty") || h.includes("quantity") || h.includes("count"))),
+    caseWeight: find((h) => isCase(h) && h.includes("weight")),
+    caseLength: find((h) => isCase(h) && (h.includes("length") || bare(h, "l"))),
+    caseWidth: find((h) => isCase(h) && (h.includes("width") || bare(h, "w"))),
+    caseHeight: find((h) => isCase(h) && (h.includes("height") || bare(h, "h"))),
     // Amazon is the only live channel (see CLAUDE.md) — prefer an AMZ-specific active/disco
     // column over the TTS/WMT ones some brands' sheets also track.
     status: find((h) => h.includes("active") && h.includes("amz")) ?? find((h) => h.includes("active")),
   };
 
   return map;
+}
+
+/** Some brands' sheets carry a group label ("Unit Dimension", "Case Dimension") in the same
+ * row as the other column headers, with the actual sub-labels ("Weight", "L", "W", "H", "QTY")
+ * one row below — a merged-cell layout that looks like two header rows once read as plain
+ * values. Fold the sub-label row into the group row so mapHeaderRow only ever sees one row,
+ * carrying the nearest group label forward into blank sub-header cells. */
+function mergeHeaderRows(groupRow: string[], subRow: string[]): string[] {
+  const combined: string[] = [];
+  let lastGroup = "";
+  const len = Math.max(groupRow.length, subRow.length);
+  for (let i = 0; i < len; i++) {
+    const groupCell = (groupRow[i] ?? "").trim();
+    if (groupCell) lastGroup = groupCell;
+    const subCell = (subRow[i] ?? "").trim();
+    if (subCell) {
+      combined[i] = groupCell ? `${groupCell} ${subCell}` : `${lastGroup} ${subCell}`;
+    } else {
+      combined[i] = groupCell;
+    }
+  }
+  return combined;
 }
 
 function parseStatus(value: string | undefined): "active" | "discontinued" | null {
@@ -142,7 +176,11 @@ function parseStatus(value: string | undefined): "active" | "discontinued" | nul
 function parseNumber(value: string | undefined): number | null {
   if (value === undefined || value === "") return null;
   const n = Number(value);
-  return Number.isFinite(n) ? n : null;
+  if (Number.isFinite(n)) return n;
+  // A few brands write case/unit weights with a trailing unit, e.g. "12lb" — strip anything
+  // that isn't part of a number and retry rather than losing the value entirely.
+  const stripped = Number(value.replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(stripped) && value.replace(/[^0-9.-]/g, "") !== "" ? stripped : null;
 }
 
 function parseText(value: string | undefined): string | null {
@@ -170,7 +208,10 @@ export interface ParsedProduct {
 }
 
 function parseRow(headers: string[], row: string[], map: ColumnMap): ParsedProduct | null {
-  const asin = (map.asin !== undefined ? row[map.asin] : "").trim().toUpperCase();
+  // Google Sheets omits trailing blank cells per row, so a row can be shorter than the
+  // asin column index (e.g. a spacer row with data only in earlier columns) — row[map.asin]
+  // is then undefined, not "".
+  const asin = (map.asin !== undefined ? row[map.asin] ?? "" : "").trim().toUpperCase();
   // Filters out blank rows, brand notes ("NOTE: all SideKick items above are FBA"), and any
   // stray repeated header row — none of those look like a real 10-character ASIN.
   if (!ASIN_PATTERN.test(asin)) return null;
@@ -205,9 +246,17 @@ function parseRow(headers: string[], row: string[], map: ColumnMap): ParsedProdu
 
 function findHeaderRow(rows: string[][]): { index: number; headers: string[] } | null {
   for (let i = 0; i < Math.min(rows.length, HEADER_SCAN_LIMIT); i++) {
-    if (rows[i].some((cell) => cell.trim().toLowerCase() === "asin")) {
-      return { index: i, headers: rows[i] };
+    const asinCol = rows[i].findIndex((cell) => cell.trim().toLowerCase().startsWith("asin"));
+    if (asinCol === -1) continue;
+
+    // If the row right after this one doesn't look like a real product row (no valid ASIN in
+    // that same column), it's a merged-header sub-label row, not data — fold it in.
+    const nextRow = rows[i + 1];
+    const nextLooksLikeData = nextRow && ASIN_PATTERN.test((nextRow[asinCol] ?? "").trim().toUpperCase());
+    if (nextRow && !nextLooksLikeData) {
+      return { index: i + 1, headers: mergeHeaderRows(rows[i], nextRow) };
     }
+    return { index: i, headers: rows[i] };
   }
   return null;
 }
@@ -271,9 +320,15 @@ export interface CatalogSyncResult {
 }
 
 export async function syncBrandCatalog(brand: BrandSheetRef, accessToken: string): Promise<CatalogSyncResult> {
+  const syncStartedAt = new Date();
   const rows = await fetchSheetRows(brand.googleSheetId, brand.googleSheetSpecsGid, accessToken);
   const products = parseCatalogRows(rows);
   await upsertProducts(brand.id, products);
+  // Anything from a previous sync that wasn't touched just now is either genuinely discontinued
+  // off the sheet or (as happened once with a brand whose linked gid pointed at the wrong tab)
+  // was never really the brand's catalog to begin with — either way, it shouldn't linger.
+  const sql = getDb();
+  await sql`delete from products where brand_id = ${brand.id} and last_synced_at < ${syncStartedAt.toISOString()}`;
   return { brandId: brand.id, productCount: products.length };
 }
 
