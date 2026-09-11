@@ -1,11 +1,79 @@
+/* Flagship Growth brand system (Flagship_Growth_Brand_Guidelines_FINAL.pdf) */
+:root {
+  --ink: #0b0d12;
+  --paper: #f6f3ec;
+  --paper-2: #ece7d9;
+  --accent-blue: #2447ff;
+  --accent-lime: #d6ff3f;
+  --muted: #6b6558;
+}
+
 body {
-  font-family:
-    system-ui,
-    -apple-system,
-    sans-serif;
+  font-family: var(--font-body), system-ui, sans-serif;
   margin: 0;
-  color: #1a1a1a;
-  background: #fafafa;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading), system-ui, sans-serif;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+h2 {
+  font-weight: 600;
+}
+
+label,
+th {
+  font-family: var(--font-heading), system-ui, sans-serif;
+  font-weight: 500;
+}
+
+a {
+  color: var(--accent-blue);
+}
+
+nav a {
+  text-decoration: none;
+  font-family: var(--font-body), system-ui, sans-serif;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+button {
+  font-family: var(--font-heading), system-ui, sans-serif;
+  font-weight: 600;
+  background: var(--accent-blue);
+  color: var(--paper);
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+button:disabled {
+  background: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+input,
+select,
+textarea {
+  font-family: var(--font-body), system-ui, sans-serif;
+  border: 1px solid var(--muted);
+  border-radius: 4px;
+  padding: 6px 8px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+small {
+  color: var(--muted);
 }
 
 table {
@@ -18,10 +86,9 @@ th,
 td {
   text-align: left;
   padding: 8px 12px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--paper-2);
 }
 
-nav a {
-  text-decoration: none;
-  color: #1a1a1a;
+section {
+  background: var(--paper-2);
 }

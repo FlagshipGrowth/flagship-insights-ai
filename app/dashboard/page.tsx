@@ -50,7 +50,7 @@ export default async function DashboardPage({
         <a href={`/seo?brand=${brand.id}`}>SEO</a>
       </nav>
 
-      <section style={{ background: "#fff", border: "1px solid #e0e0e0", padding: 16, marginBottom: 24, maxWidth: 720 }}>
+      <section style={{ border: "1px solid var(--muted)", padding: 16, marginBottom: 24, maxWidth: 720 }}>
         <h2 style={{ marginTop: 0 }}>Latest recommendation</h2>
         {latestInsight ? (
           <>

@@ -57,7 +57,7 @@ export default async function SeoPage({ searchParams }: { searchParams: Promise<
         optimizations.map((r: any) => (
           <section
             key={r.id}
-            style={{ border: "1px solid #e0e0e0", background: "#fff", padding: 16, marginBottom: 16, maxWidth: 640 }}
+            style={{ border: "1px solid var(--muted)", padding: 16, marginBottom: 16, maxWidth: 640 }}
           >
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <strong>{r.title}</strong>
