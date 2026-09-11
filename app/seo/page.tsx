@@ -2,15 +2,15 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getUserContext, isInternalStaff } from "@/lib/user-context";
 import { getBrandsForClient } from "@/lib/metrics";
-import { getSeoRecommendations, brandBelongsToClient } from "@/lib/seo";
+import { getProductOptimizations, brandBelongsToClient } from "@/lib/seo";
 import { getDb } from "@/lib/db";
 
-async function reviewRecommendation(formData: FormData) {
+async function reviewOptimization(formData: FormData) {
   "use server";
   const ctx = await getUserContext();
   if (!ctx || !ctx.clientId) return;
 
-  const recId = formData.get("recId") as string;
+  const optimizationId = formData.get("optimizationId") as string;
   const brandId = formData.get("brandId") as string;
   const status = formData.get("status") as string;
   const comment = (formData.get("comment") as string)?.trim() || null;
@@ -19,9 +19,9 @@ async function reviewRecommendation(formData: FormData) {
 
   const sql = getDb();
   await sql`
-    update seo_recommendations
+    update product_optimizations
     set status = ${status}, client_comment = ${comment}, reviewed_by = ${ctx.id}, reviewed_at = now()
-    where id = ${recId} and brand_id = ${brandId}
+    where id = ${optimizationId} and brand_id = ${brandId}
   `;
   revalidatePath("/seo");
 }
@@ -42,19 +42,19 @@ export default async function SeoPage({ searchParams }: { searchParams: Promise<
     return <main style={{ padding: 24 }}>No brands are set up on your account yet.</main>;
   }
 
-  const recommendations = await getSeoRecommendations(brand.id);
+  const optimizations = await getProductOptimizations(brand.id);
 
   return (
     <main style={{ padding: 24 }}>
-      <h1>SEO recommendations — {brand.name}</h1>
+      <h1>Product optimizations — {brand.name}</h1>
       <p>
         <a href="/dashboard">&larr; Back to dashboard</a>
       </p>
 
-      {recommendations.length === 0 ? (
+      {optimizations.length === 0 ? (
         <p>Nothing to review yet.</p>
       ) : (
-        recommendations.map((r: any) => (
+        optimizations.map((r: any) => (
           <section
             key={r.id}
             style={{ border: "1px solid #e0e0e0", background: "#fff", padding: 16, marginBottom: 16, maxWidth: 640 }}
@@ -67,8 +67,8 @@ export default async function SeoPage({ searchParams }: { searchParams: Promise<
             </div>
             <p>{r.description}</p>
             {r.status === "pending" ? (
-              <form action={reviewRecommendation} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-                <input type="hidden" name="recId" value={r.id} />
+              <form action={reviewOptimization} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+                <input type="hidden" name="optimizationId" value={r.id} />
                 <input type="hidden" name="brandId" value={brand.id} />
                 <label style={{ flex: 1 }}>
                   Comment (optional)

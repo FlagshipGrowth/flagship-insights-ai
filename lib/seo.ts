@@ -1,13 +1,13 @@
 import { getDb } from "./db";
 
-export const SEO_CATEGORIES = ["technical", "on_page", "content", "keywords", "backlinks", "other"] as const;
-export type SeoCategory = (typeof SEO_CATEGORIES)[number];
+export const OPTIMIZATION_CATEGORIES = ["technical", "on_page", "content", "keywords", "backlinks", "other"] as const;
+export type OptimizationCategory = (typeof OPTIMIZATION_CATEGORIES)[number];
 
-export async function getSeoRecommendations(brandId: string) {
+export async function getProductOptimizations(brandId: string) {
   const sql = getDb();
   return sql`
     select id, title, category, description, priority, status, client_comment, created_at, reviewed_at
-    from seo_recommendations
+    from product_optimizations
     where brand_id = ${brandId}
     order by
       case status when 'pending' then 0 else 1 end,
