@@ -30,12 +30,15 @@ export async function POST(req: Request) {
     "svix-signature": headerList.get("svix-signature") ?? "",
   };
 
-  let event: { type: string; data: any };
+  // svix's verify() only checks the signature and returns undefined (jsonParse: false
+  // internally) — it does NOT hand back the parsed payload. Parse it ourselves once
+  // verification hasn't thrown.
   try {
-    event = new Webhook(secret).verify(payload, svixHeaders) as unknown as { type: string; data: any };
+    new Webhook(secret).verify(payload, svixHeaders);
   } catch {
     return new Response("Invalid signature", { status: 400 });
   }
+  const event = JSON.parse(payload) as { type: string; data: any };
 
   const sql = getDb();
 
