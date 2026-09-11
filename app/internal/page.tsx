@@ -31,6 +31,7 @@ export default async function InternalPage() {
               <th>Client</th>
               <th>Brand</th>
               <th>Channels</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -39,6 +40,9 @@ export default async function InternalPage() {
                 <td>{r.client_name}</td>
                 <td>{r.brand_name}</td>
                 <td>{(r.channels_enabled as string[]).join(", ") || "—"}</td>
+                <td>
+                  <a href={`/internal/seo/${r.brand_id}`}>SEO</a>
+                </td>
               </tr>
             ))}
           </tbody>
