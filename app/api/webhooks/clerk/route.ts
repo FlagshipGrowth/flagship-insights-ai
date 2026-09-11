@@ -61,6 +61,17 @@ export async function POST(req: Request) {
     }
 
     case "organization.created": {
+      // Staff often pre-seed a client's brand(s) (see migration 0009) before that client ever
+      // signs up. Link this new org to a pre-seeded, not-yet-linked client with the same name
+      // instead of creating a duplicate — only fall back to inserting fresh if there's no match.
+      const preseeded = await sql`
+        select id from clients where lower(name) = lower(${event.data.name}) and clerk_org_id is null limit 1
+      `;
+      if (preseeded.length > 0) {
+        await sql`update clients set clerk_org_id = ${event.data.id} where id = ${preseeded[0].id}`;
+        break;
+      }
+
       await sql`
         insert into clients (name, clerk_org_id)
         values (${event.data.name}, ${event.data.id})
