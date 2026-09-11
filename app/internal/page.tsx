@@ -14,7 +14,7 @@ export default async function InternalPage() {
   return (
     <main>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h1>{ctx.role === "account_manager" ? "Your assigned clients" : "All clients (internal)"}</h1>
+        <h1>{ctx.role === "account_manager" ? "Your assigned brands" : "Choose a brand"}</h1>
         <UserButton />
       </header>
 
@@ -52,7 +52,7 @@ export default async function InternalPage() {
                   <td>{r.brand_name}</td>
                   <td>{(r.channels_enabled as string[]).join(", ") || "—"}</td>
                   <td>
-                    <a href={`/internal/seo/${r.brand_id}`}>SEO →</a>
+                    <a href={`/internal/brand/${r.brand_id}`}>Open →</a>
                   </td>
                 </tr>
               ))}
