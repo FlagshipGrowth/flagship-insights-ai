@@ -81,6 +81,7 @@ async function fetchSheetRows(spreadsheetId: string, gid: string, accessToken: s
 
 type ColumnField =
   | "asin"
+  | "sku"
   | "title"
   | "status"
   | "category"
@@ -123,6 +124,7 @@ function mapHeaderRow(headers: string[]): ColumnMap {
     // turned out to point at a raw Amazon bulk-upload tab rather than a real spec sheet) should
     // NOT be mistaken for a product-spec header row just because "asin" appears in it somewhere.
     asin: find((h) => h.startsWith("asin")),
+    sku: find((h) => h === "sku"),
     title: find((h) => h.includes("product name") || h === "title"),
     category: find((h) => h === "category"),
     subCategory: find((h) => h.includes("sub category") || h.includes("subcategory")),
@@ -190,6 +192,7 @@ function parseText(value: string | undefined): string | null {
 
 export interface ParsedProduct {
   asin: string;
+  sku: string | null;
   title: string | null;
   status: "active" | "discontinued" | null;
   category: string | null;
@@ -226,6 +229,7 @@ function parseRow(headers: string[], row: string[], map: ColumnMap): ParsedProdu
 
   return {
     asin,
+    sku: parseText(cell(map.sku)),
     title: parseText(cell(map.title)),
     status: parseStatus(cell(map.status)),
     category: parseText(cell(map.category)),
@@ -279,15 +283,16 @@ export async function upsertProducts(brandId: string, products: ParsedProduct[])
   for (const p of products) {
     await sql`
       insert into products (
-        brand_id, asin, title, status, category, sub_category, product_type, upc,
+        brand_id, asin, sku, title, status, category, sub_category, product_type, upc,
         cost_landed, msrp, unit_weight, case_qty, case_weight, case_length, case_width, case_height,
         raw, last_synced_at
       ) values (
-        ${brandId}, ${p.asin}, ${p.title}, ${p.status}, ${p.category}, ${p.subCategory}, ${p.productType}, ${p.upc},
+        ${brandId}, ${p.asin}, ${p.sku}, ${p.title}, ${p.status}, ${p.category}, ${p.subCategory}, ${p.productType}, ${p.upc},
         ${p.costLanded}, ${p.msrp}, ${p.unitWeight}, ${p.caseQty}, ${p.caseWeight}, ${p.caseLength}, ${p.caseWidth}, ${p.caseHeight},
         ${JSON.stringify(p.raw)}, now()
       )
       on conflict (brand_id, asin) do update set
+        sku = excluded.sku,
         title = excluded.title,
         status = excluded.status,
         category = excluded.category,

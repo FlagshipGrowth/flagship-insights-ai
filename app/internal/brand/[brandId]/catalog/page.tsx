@@ -37,10 +37,11 @@ export default async function InternalCatalogPage({ params }: { params: Promise<
       {products.length === 0 ? (
         <p>No products synced yet.</p>
       ) : (
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          <table>
+        <div className="card table-scroll" style={{ padding: 0 }}>
+          <table className="table-dense">
             <thead>
               <tr>
+                <th>SKU</th>
                 <th>ASIN</th>
                 <th>Title</th>
                 <th>Status</th>
@@ -49,14 +50,15 @@ export default async function InternalCatalogPage({ params }: { params: Promise<
                 <th>Cost</th>
                 <th>MSRP</th>
                 <th>Weight</th>
-                <th>Case dims (L×W×H)</th>
+                <th>Case L×W×H</th>
                 <th>Case qty</th>
               </tr>
             </thead>
             <tbody>
               {products.map((p: any) => (
-                <tr key={p.asin}>
-                  <td>{p.asin}</td>
+                <tr key={p.id}>
+                  <td>{p.sku ?? "—"}</td>
+                  <td>{p.asin ?? "—"}</td>
                   <td>{p.title ?? "—"}</td>
                   <td>{p.status ? <Badge variant={p.status}>{p.status}</Badge> : "—"}</td>
                   <td>{p.category ?? p.sub_category ?? p.product_type ?? "—"}</td>

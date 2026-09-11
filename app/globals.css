@@ -102,6 +102,27 @@ td {
   border-bottom: 1px solid var(--paper-2);
 }
 
+/* Horizontally-scrollable wrapper for wide tables (spec-sheet-style data) — the table itself
+   sizes to its content instead of squeezing into the viewport, and this wrapper scrolls. */
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Dense, single-line rows like a spreadsheet — used for the Catalog table, which has too many
+   columns to wrap comfortably. */
+.table-dense {
+  width: auto;
+  min-width: 100%;
+}
+
+.table-dense th,
+.table-dense td {
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
 /* --- Reusable layout primitives --- */
 
 .card {
