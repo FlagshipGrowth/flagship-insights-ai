@@ -1,13 +1,10 @@
 import { neon } from "@neondatabase/serverless";
+import { getConnectionString } from "@netlify/database";
 
-// DATABASE_URL is set via `netlify env:set` once the Netlify DB (Neon) instance exists —
-// see docs in the repo README for the one-time setup. Never hardcode it here.
+// getConnectionString() reads Netlify DB's own env var (NETLIFY_DB_URL), injected
+// automatically once the Netlify DB instance is provisioned — not a generic DATABASE_URL.
 export function getDb() {
-  const url = process.env.DATABASE_URL;
-  if (!url) {
-    throw new Error("DATABASE_URL is not set — provision the Netlify DB instance first.");
-  }
-  return neon(url);
+  return neon(getConnectionString());
 }
 
 export interface MetricRow {
