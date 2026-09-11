@@ -22,7 +22,22 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      appearance={{
+        variables: {
+          colorPrimary: "#2447FF",
+          colorBackground: "#F6F3EC",
+          colorForeground: "#0B0D12",
+          colorInput: "#F6F3EC",
+          colorInputForeground: "#0B0D12",
+          fontFamily: "var(--font-body), system-ui, sans-serif",
+        },
+        elements: {
+          headerTitle: { fontFamily: "var(--font-heading), system-ui, sans-serif" },
+          formButtonPrimary: { fontFamily: "var(--font-heading), system-ui, sans-serif" },
+        },
+      }}
+    >
       <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable}`}>
         <body>{children}</body>
       </html>
