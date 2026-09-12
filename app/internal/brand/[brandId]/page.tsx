@@ -184,39 +184,6 @@ export default async function BrandHubPage({
       )}
 
       <section style={{ marginBottom: 32 }}>
-        <h2>Slack</h2>
-        <p>
-          <small>
-            Map this brand to its internal Slack channel so <code>/create-task</code> run in that channel creates the
-            task here automatically, with no <code>client:</code> needed.
-          </small>
-        </p>
-        <div className="card" style={{ maxWidth: 480 }}>
-          <form
-            action={boundUpdateSlackChannel}
-            style={{ display: "flex", gap: 12, alignItems: "flex-end" }}
-          >
-            <label style={{ flex: 1 }}>
-              Slack channel ID
-              <br />
-              <input
-                name="slackChannelId"
-                defaultValue={slackChannelId ?? ""}
-                placeholder="C0123ABC456"
-                style={{ width: "100%" }}
-              />
-            </label>
-            <button type="submit">Save</button>
-          </form>
-          <p style={{ marginTop: 8 }}>
-            <small>
-              Find it in Slack: open the channel → channel name → "About" tab → scroll to the bottom.
-            </small>
-          </p>
-        </div>
-      </section>
-
-      <section style={{ marginBottom: 32 }}>
         <h2>Tools</h2>
         <div className="card" style={{ maxWidth: 640, padding: 0, overflow: "hidden" }}>
           {[
@@ -321,6 +288,38 @@ export default async function BrandHubPage({
           </div>
         )}
       </section>
+
+      <details style={{ marginTop: 32 }}>
+        <summary style={{ cursor: "pointer", fontWeight: 600 }}>Slack</summary>
+        <div style={{ marginTop: 12 }}>
+          <p>
+            <small>
+              Map this brand to its internal Slack channel so <code>/create-task</code> run in that channel creates
+              the task here automatically, with no <code>client:</code> needed.
+            </small>
+          </p>
+          <div className="card" style={{ maxWidth: 480 }}>
+            <form action={boundUpdateSlackChannel} style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
+              <label style={{ flex: 1 }}>
+                Slack channel ID
+                <br />
+                <input
+                  name="slackChannelId"
+                  defaultValue={slackChannelId ?? ""}
+                  placeholder="C0123ABC456"
+                  style={{ width: "100%" }}
+                />
+              </label>
+              <button type="submit">Save</button>
+            </form>
+            <p style={{ marginTop: 8 }}>
+              <small>
+                Find it in Slack: open the channel → channel name → "About" tab → scroll to the bottom.
+              </small>
+            </p>
+          </div>
+        </div>
+      </details>
     </main>
   );
 }
