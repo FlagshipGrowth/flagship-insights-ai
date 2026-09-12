@@ -98,6 +98,12 @@ export default async function BrandHubPage({
   const reconciliationSummary = await getReconciliationSummary(brandId);
   const tasks = await getTasks(brandId);
   const slackChannelId = await getBrandSlackChannelId(brandId);
+  const tasksByCategory = new Map<string, typeof tasks>();
+  for (const t of tasks as any[]) {
+    const key = t.category ?? "Other";
+    if (!tasksByCategory.has(key)) tasksByCategory.set(key, []);
+    tasksByCategory.get(key)!.push(t);
+  }
   const boundCreateTask = createTask.bind(null, brandId);
   const boundUpdateStatus = updateTaskStatus.bind(null, brandId);
   const boundDeleteTask = deleteTask.bind(null, brandId);
@@ -276,28 +282,39 @@ export default async function BrandHubPage({
         {tasks.length === 0 ? (
           <p>No tasks yet.</p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 640 }}>
-            {tasks.map((t: any) => (
-              <div key={t.id} className="card" style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                <div>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <strong>{t.title}</strong>
-                    <Badge variant={t.status}>{t.status.replace("_", " ")}</Badge>
-                  </div>
-                  {t.description && <p style={{ margin: "4px 0" }}>{t.description}</p>}
-                  <small>
-                    {t.assignee ? `${t.assignee}` : "Unassigned"}
-                    {t.due_date ? ` · due ${new Date(t.due_date).toLocaleDateString()}` : ""}
-                  </small>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
-                  <TaskStatusSelect taskId={t.id} currentStatus={t.status} action={boundUpdateStatus} />
-                  <form action={boundDeleteTask}>
-                    <input type="hidden" name="taskId" value={t.id} />
-                    <button type="submit" className="secondary">
-                      Delete
-                    </button>
-                  </form>
+          <div style={{ display: "flex", flexDirection: "column", gap: 24, maxWidth: 640 }}>
+            {Array.from(tasksByCategory.entries()).map(([category, categoryTasks]) => (
+              <div key={category}>
+                <h3 style={{ marginBottom: 8 }}>{category}</h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {(categoryTasks as any[]).map((t: any) => (
+                    <div
+                      key={t.id}
+                      className="card"
+                      style={{ display: "flex", justifyContent: "space-between", gap: 12 }}
+                    >
+                      <div>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <strong>{t.title}</strong>
+                          <Badge variant={t.status}>{t.status.replace("_", " ")}</Badge>
+                        </div>
+                        {t.description && <p style={{ margin: "4px 0" }}>{t.description}</p>}
+                        <small>
+                          {t.assignee ? `${t.assignee}` : "Unassigned"}
+                          {t.due_date ? ` · due ${new Date(t.due_date).toLocaleDateString()}` : ""}
+                        </small>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
+                        <TaskStatusSelect taskId={t.id} currentStatus={t.status} action={boundUpdateStatus} />
+                        <form action={boundDeleteTask}>
+                          <input type="hidden" name="taskId" value={t.id} />
+                          <button type="submit" className="secondary">
+                            Delete
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}

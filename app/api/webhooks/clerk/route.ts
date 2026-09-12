@@ -1,6 +1,7 @@
 import { Webhook } from "svix";
 import { headers } from "next/headers";
 import { getDb } from "@/lib/db";
+import { seedOnboardingTasks } from "@/lib/onboarding-tasks";
 
 // INTERNAL_STAFF_EMAILS / ACCOUNT_MANAGER_EMAILS decide staff role on sign-up — there's no
 // Clerk "internal staff" org, so this is the simplest thing that works without asking Joey to
@@ -81,10 +82,14 @@ export async function POST(req: Request) {
       if (client.length > 0) {
         // One default brand per new client org — multi-brand-per-client management is a
         // fast-follow, not built yet (SPEC.md §4's `brands` table supports it already).
-        await sql`
+        const newBrand = await sql`
           insert into brands (client_id, name, channels_enabled)
           values (${client[0].id}, ${event.data.name}, '{}')
+          returning id
         `;
+        if (newBrand.length > 0) {
+          await seedOnboardingTasks(newBrand[0].id);
+        }
       }
       break;
     }

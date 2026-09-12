@@ -11,16 +11,18 @@ export const runtime = "nodejs"; // needs Node's crypto — don't switch this to
  *  3. Request URL: https://<netlify-domain>/api/slack/commands
  *  4. Reinstall the app to the workspace to pick up the new command.
  *
- * Usage: /create-task <title> | priority:<low|med|high>
- *   Run inside a brand's own Slack channel (mapped via the internal brand hub's "Slack"
- *   section) and the brand is resolved from the channel — no client: needed. From any other
- *   channel, add `client:<brand name>` to say which brand explicitly.
+ * Usage: /create-task <conversational request>
+ *   e.g. "/create-task opopop needs their brand story rewritten, this is urgent" — Claude picks
+ *   out the title, brand, and priority. Run inside a brand's own Slack channel (mapped via the
+ *   internal brand hub's "Slack" section) and you don't even need to name the brand.
+ *   Power-user shortcut: `/create-task <title> | client:<brand name> | priority:<low|med|high>`
+ *   is still parsed deterministically (no LLM call) if you'd rather be explicit.
  *
- * Slack requires a response within 3 seconds. This route only verifies the signature and
- * parses the text — both fast, no DB — then hands the actual brand lookup + task insert off to
- * slack-create-task-background.ts (a Netlify background function) and acks immediately. The
- * real confirmation (or "brand not found" error) gets posted to the channel a moment later by
- * that background function, not by this response.
+ * Slack requires a response within 3 seconds. This route only verifies the signature — no DB,
+ * no LLM call — then hands the raw text off to slack-create-task-background.ts (a Netlify
+ * background function) and acks immediately. That function does the actual parsing (including
+ * the Claude call for conversational text), brand resolution, and DB insert, then posts the real
+ * confirmation (or error) to the channel a moment later.
  */
 export async function POST(req: Request) {
   // Must read as raw text FIRST — verification depends on the exact raw bytes.
@@ -51,35 +53,22 @@ export async function POST(req: Request) {
   if (!text) {
     return Response.json({
       response_type: "ephemeral",
-      text: "Usage: `/create-task <title> | priority:<low|med|high>` (run in a brand's Slack channel), or add `| client:<brand name>` from elsewhere.",
+      text: 'Usage: `/create-task <what needs to happen>` — e.g. "/create-task renew SEO copy for Opopop, high priority". Run in a brand\'s Slack channel and it names itself.',
     });
-  }
-
-  const [title, ...modifiers] = text.split("|").map((s) => s.trim());
-  const fields: Record<string, string> = {};
-  for (const mod of modifiers) {
-    const [key, value] = mod.split(":").map((s) => s.trim());
-    if (key && value) fields[key.toLowerCase()] = value;
   }
 
   // Fire the background function and wait only for Netlify to accept the invocation (near-
   // instant — background functions return 202 immediately, before their own work finishes).
-  // Brand resolution (client: name, else this channel's mapped brand) happens over there too,
-  // since it needs the DB.
+  // All real parsing (including the Claude call for conversational text) and brand resolution
+  // happens over there, since it needs the DB and can take longer than Slack's 3s budget.
   await fetch(new URL("/.netlify/functions/slack-create-task-background", req.url), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      title,
-      client: fields.client,
-      priority: fields.priority,
-      userId,
-      channelId,
-    }),
+    body: JSON.stringify({ text, userId, channelId }),
   });
 
   return Response.json({
     response_type: "ephemeral",
-    text: `⏳ Creating task: "${title}"…`,
+    text: `⏳ Creating task…`,
   });
 }
