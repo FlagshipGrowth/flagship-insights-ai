@@ -15,6 +15,7 @@ export interface Task {
   team: string | null;
   due_date: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 function normalizeTask(r: any): Task {
@@ -28,6 +29,7 @@ function normalizeTask(r: any): Task {
     team: r.team,
     due_date: r.due_date instanceof Date ? r.due_date.toISOString() : r.due_date,
     created_at: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
+    updated_at: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at),
   };
 }
 
@@ -54,7 +56,7 @@ export async function getTasks(
     case "created_desc":
       return (
         await sql`
-          select id, title, description, category, status, assignee, team, due_date, created_at
+          select id, title, description, category, status, assignee, team, due_date, created_at, updated_at
           from tasks
           where brand_id = ${brandId}
             and (${teamParam}::text is null or (${teamParam} = ${UNASSIGNED_FILTER} and team is null) or team = ${teamParam})
@@ -65,7 +67,7 @@ export async function getTasks(
     case "created_asc":
       return (
         await sql`
-          select id, title, description, category, status, assignee, team, due_date, created_at
+          select id, title, description, category, status, assignee, team, due_date, created_at, updated_at
           from tasks
           where brand_id = ${brandId}
             and (${teamParam}::text is null or (${teamParam} = ${UNASSIGNED_FILTER} and team is null) or team = ${teamParam})
@@ -76,7 +78,7 @@ export async function getTasks(
     case "due_date":
       return (
         await sql`
-          select id, title, description, category, status, assignee, team, due_date, created_at
+          select id, title, description, category, status, assignee, team, due_date, created_at, updated_at
           from tasks
           where brand_id = ${brandId}
             and (${teamParam}::text is null or (${teamParam} = ${UNASSIGNED_FILTER} and team is null) or team = ${teamParam})
@@ -87,7 +89,7 @@ export async function getTasks(
     default:
       return (
         await sql`
-          select id, title, description, category, status, assignee, team, due_date, created_at
+          select id, title, description, category, status, assignee, team, due_date, created_at, updated_at
           from tasks
           where brand_id = ${brandId}
             and (${teamParam}::text is null or (${teamParam} = ${UNASSIGNED_FILTER} and team is null) or team = ${teamParam})
@@ -119,6 +121,7 @@ export interface AdminTask {
   team: string | null;
   dueDate: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 function normalizeAdminTask(r: any): AdminTask {
@@ -133,6 +136,7 @@ function normalizeAdminTask(r: any): AdminTask {
     team: r.team,
     dueDate: r.due_date instanceof Date ? r.due_date.toISOString() : r.due_date,
     createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
+    updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at),
   };
 }
 
@@ -171,7 +175,7 @@ export async function getAllTasksForAdmin(
       return (
         await sql`
           select t.id, t.brand_id, b.name as brand_name, t.title, t.category, t.status, t.assignee, t.team,
-                 t.due_date, t.created_at
+                 t.due_date, t.created_at, t.updated_at
           from tasks t join brands b on b.id = t.brand_id
           where (t.status != 'done' or ${includeDoneParam}) and (${teamParam}::text is null or t.team = ${teamParam})
           order by t.created_at desc
@@ -181,7 +185,7 @@ export async function getAllTasksForAdmin(
       return (
         await sql`
           select t.id, t.brand_id, b.name as brand_name, t.title, t.category, t.status, t.assignee, t.team,
-                 t.due_date, t.created_at
+                 t.due_date, t.created_at, t.updated_at
           from tasks t join brands b on b.id = t.brand_id
           where (t.status != 'done' or ${includeDoneParam}) and (${teamParam}::text is null or t.team = ${teamParam})
           order by t.created_at asc
@@ -191,7 +195,7 @@ export async function getAllTasksForAdmin(
       return (
         await sql`
           select t.id, t.brand_id, b.name as brand_name, t.title, t.category, t.status, t.assignee, t.team,
-                 t.due_date, t.created_at
+                 t.due_date, t.created_at, t.updated_at
           from tasks t join brands b on b.id = t.brand_id
           where (t.status != 'done' or ${includeDoneParam}) and (${teamParam}::text is null or t.team = ${teamParam})
           order by t.due_date nulls last, t.created_at desc
@@ -201,7 +205,7 @@ export async function getAllTasksForAdmin(
       return (
         await sql`
           select t.id, t.brand_id, b.name as brand_name, t.title, t.category, t.status, t.assignee, t.team,
-                 t.due_date, t.created_at
+                 t.due_date, t.created_at, t.updated_at
           from tasks t join brands b on b.id = t.brand_id
           where (t.status != 'done' or ${includeDoneParam}) and (${teamParam}::text is null or t.team = ${teamParam})
           order by case t.status when 'todo' then 0 when 'in_progress' then 1 else 2 end, t.due_date nulls last, t.created_at desc

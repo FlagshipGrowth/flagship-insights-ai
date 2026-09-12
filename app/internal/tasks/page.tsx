@@ -9,6 +9,7 @@ import {
   TASK_STATUSES,
   TASK_SORTS,
   type TaskSort,
+  type AdminTask,
 } from "@/lib/tasks";
 import { TEAMS } from "@/lib/teams";
 import { TaskStatusSelect } from "@/components/TaskStatusSelect";
@@ -82,28 +83,87 @@ async function updateTaskDueDateAdmin(formData: FormData) {
   revalidatePath("/internal/tasks");
 }
 
+function TaskTable({ tasks }: { tasks: AdminTask[] }) {
+  return (
+    <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+      <table>
+        <thead>
+          <tr>
+            <th>Brand</th>
+            <th>Task</th>
+            <th>Team</th>
+            <th>Status</th>
+            <th>Assignee</th>
+            <th>Due date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tasks.map((t) => (
+            <tr key={t.id}>
+              <td>
+                <a href={`/internal/brand/${t.brandId}`}>{t.brandName}</a>
+              </td>
+              <td>
+                {t.title}
+                {t.category && (
+                  <>
+                    {" "}
+                    <small style={{ color: "var(--muted)" }}>({t.category})</small>
+                  </>
+                )}
+              </td>
+              <td>
+                <TaskTeamSelect taskId={t.id} currentTeam={t.team} action={updateTaskTeamAdmin} />
+              </td>
+              <td>
+                <TaskStatusSelect taskId={t.id} currentStatus={t.status} action={updateTaskStatusAdmin} />
+              </td>
+              <td>{t.assignee ?? "—"}</td>
+              <td>
+                <span
+                  style={{
+                    color:
+                      t.dueDate && parseDateOnly(t.dueDate) < new Date() && t.status !== "done"
+                        ? "#DC2626"
+                        : undefined,
+                  }}
+                >
+                  <TaskDueDateInput taskId={t.id} currentDueDate={t.dueDate} action={updateTaskDueDateAdmin} />
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default async function AdminTasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string; team?: string; includeDone?: string }>;
+  searchParams: Promise<{ sort?: string; team?: string }>;
 }) {
   const ctx = await getUserContext();
   if (!ctx) redirect("/onboarding");
   if (ctx.role !== "internal_admin") redirect("/internal");
 
-  const { sort: sortParam, team: teamParam, includeDone: includeDoneParam } = await searchParams;
+  const { sort: sortParam, team: teamParam } = await searchParams;
   const sort: TaskSort = (TASK_SORTS as readonly string[]).includes(sortParam ?? "")
     ? (sortParam as TaskSort)
     : "due_date";
   const team = teamParam && (TEAMS as readonly string[]).includes(teamParam) ? teamParam : undefined;
-  const includeDone = includeDoneParam === "1";
 
   const openCountsByTeam = await getOpenTaskCountsByTeam();
-  const tasks = await getAllTasksForAdmin(sort, { team, includeDone });
+  const allTasks = await getAllTasksForAdmin(sort, { team, includeDone: true });
+  const activeTasks = allTasks.filter((t) => t.status !== "done");
+  const doneTasks = allTasks
+    .filter((t) => t.status === "done")
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
   const linkParams = (overrides: Record<string, string | undefined>) => {
     const params = new URLSearchParams();
-    const merged = { sort, team, includeDone: includeDone ? "1" : undefined, ...overrides };
+    const merged = { sort, team, ...overrides };
     for (const [key, value] of Object.entries(merged)) {
       if (value) params.set(key, value);
     }
@@ -145,7 +205,7 @@ export default async function AdminTasksPage({
         </div>
       </section>
 
-      <section>
+      <section style={{ marginBottom: 32 }}>
         <nav className="pill-nav">
           {TASK_SORTS.map((s) => (
             <a key={s} href={linkParams({ sort: s })} className={s === sort ? "active" : ""}>
@@ -154,68 +214,25 @@ export default async function AdminTasksPage({
           ))}
         </nav>
 
-        <p>
-          <a href={linkParams({ includeDone: includeDone ? undefined : "1" })}>
-            {includeDone ? "Hide done tasks" : "Show done tasks too"}
-          </a>
-        </p>
-
-        {tasks.length === 0 ? (
+        {activeTasks.length === 0 ? (
           <p>No open tasks{team ? ` for ${team}` : ""}.</p>
         ) : (
-          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Brand</th>
-                  <th>Task</th>
-                  <th>Team</th>
-                  <th>Status</th>
-                  <th>Assignee</th>
-                  <th>Due date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tasks.map((t) => (
-                  <tr key={t.id}>
-                    <td>
-                      <a href={`/internal/brand/${t.brandId}`}>{t.brandName}</a>
-                    </td>
-                    <td>
-                      {t.title}
-                      {t.category && (
-                        <>
-                          {" "}
-                          <small style={{ color: "var(--muted)" }}>({t.category})</small>
-                        </>
-                      )}
-                    </td>
-                    <td>
-                      <TaskTeamSelect taskId={t.id} currentTeam={t.team} action={updateTaskTeamAdmin} />
-                    </td>
-                    <td>
-                      <TaskStatusSelect taskId={t.id} currentStatus={t.status} action={updateTaskStatusAdmin} />
-                    </td>
-                    <td>{t.assignee ?? "—"}</td>
-                    <td>
-                      <span
-                        style={{
-                          color:
-                            t.dueDate && parseDateOnly(t.dueDate) < new Date() && t.status !== "done"
-                              ? "#DC2626"
-                              : undefined,
-                        }}
-                      >
-                        <TaskDueDateInput taskId={t.id} currentDueDate={t.dueDate} action={updateTaskDueDateAdmin} />
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <TaskTable tasks={activeTasks} />
         )}
       </section>
+
+      <details>
+        <summary style={{ cursor: "pointer", fontWeight: 600 }}>Completed ({doneTasks.length})</summary>
+        <div style={{ marginTop: 12 }}>
+          {doneTasks.length === 0 ? (
+            <p>
+              <small style={{ color: "var(--muted)" }}>No completed tasks yet.</small>
+            </p>
+          ) : (
+            <TaskTable tasks={doneTasks} />
+          )}
+        </div>
+      </details>
     </main>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { useSavedFeedback } from "./useSavedFeedback";
+
 export function TaskDueDateInput({
   taskId,
   currentDueDate,
@@ -7,17 +9,24 @@ export function TaskDueDateInput({
 }: {
   taskId: string;
   currentDueDate: string | null;
-  action: (formData: FormData) => void;
+  action: (formData: FormData) => Promise<void>;
 }) {
+  const { saved, run } = useSavedFeedback();
+
   return (
-    <form action={action}>
-      <input type="hidden" name="taskId" value={taskId} />
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       <input
         type="date"
         name="dueDate"
         defaultValue={currentDueDate ? currentDueDate.slice(0, 10) : ""}
-        onChange={(e) => e.currentTarget.form?.requestSubmit()}
+        onChange={(e) => {
+          const formData = new FormData();
+          formData.set("taskId", taskId);
+          formData.set("dueDate", e.target.value);
+          run(action, formData);
+        }}
       />
-    </form>
+      {saved && <small style={{ color: "#16A34A", fontWeight: 600 }}>Saved ✓</small>}
+    </div>
   );
 }

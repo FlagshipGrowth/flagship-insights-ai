@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Badge } from "@/components/Badge";
 import { TaskStatusSelect } from "@/components/TaskStatusSelect";
 import { TaskTeamSelect } from "@/components/TaskTeamSelect";
 import { TaskDueDateInput } from "@/components/TaskDueDateInput";
+import { useSavedFeedback } from "@/components/useSavedFeedback";
 import { formatDateOnly } from "@/lib/dates";
 
 interface Task {
@@ -38,13 +39,15 @@ export function TaskCard({
 }: {
   task: Task;
   comments: Comment[];
-  boundUpdateStatus: (formData: FormData) => void;
-  boundUpdateTeam: (formData: FormData) => void;
-  boundUpdateDueDate: (formData: FormData) => void;
+  boundUpdateStatus: (formData: FormData) => Promise<void>;
+  boundUpdateTeam: (formData: FormData) => Promise<void>;
+  boundUpdateDueDate: (formData: FormData) => Promise<void>;
   boundDeleteTask: (formData: FormData) => void;
-  boundAddComment: (formData: FormData) => void;
+  boundAddComment: (formData: FormData) => Promise<void>;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const commentRef = useRef<HTMLTextAreaElement>(null);
+  const { saved: commentSaved, run: runAddComment } = useSavedFeedback();
 
   return (
     <>
@@ -177,12 +180,26 @@ export function TaskCard({
               </div>
             )}
 
-            <form action={boundAddComment} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <input type="hidden" name="taskId" value={task.id} />
-              <textarea name="body" rows={2} placeholder="Add a comment…" required style={{ width: "100%" }} />
-              <button type="submit" style={{ alignSelf: "flex-start" }}>
-                Post comment
-              </button>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const body = commentRef.current?.value.trim();
+                if (!body) return;
+                const formData = new FormData();
+                formData.set("taskId", task.id);
+                formData.set("body", body);
+                await runAddComment(boundAddComment, formData);
+                if (commentRef.current) commentRef.current.value = "";
+              }}
+              style={{ display: "flex", flexDirection: "column", gap: 8 }}
+            >
+              <textarea ref={commentRef} rows={2} placeholder="Add a comment…" required style={{ width: "100%" }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button type="submit" style={{ alignSelf: "flex-start" }}>
+                  Post comment
+                </button>
+                {commentSaved && <small style={{ color: "#16A34A", fontWeight: 600 }}>Saved ✓</small>}
+              </div>
             </form>
           </div>
         </div>

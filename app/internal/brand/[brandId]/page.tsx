@@ -199,8 +199,12 @@ export default async function BrandHubPage({
     commentsByTask.get(c.taskId)!.push(c);
   }
   const slackChannelId = await getBrandSlackChannelId(brandId);
+  const activeTasks = tasks.filter((t) => t.status !== "done");
+  const doneTasks = tasks
+    .filter((t) => t.status === "done")
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
   const tasksByCategory = new Map<string, typeof tasks>();
-  for (const t of tasks as any[]) {
+  for (const t of activeTasks as any[]) {
     const key = t.category ?? "Other";
     if (!tasksByCategory.has(key)) tasksByCategory.set(key, []);
     tasksByCategory.get(key)!.push(t);
@@ -370,8 +374,8 @@ export default async function BrandHubPage({
           )}
         </form>
 
-        {tasks.length === 0 ? (
-          <p>{teamFilter || assigneeFilter ? "No tasks match this filter." : "No tasks yet."}</p>
+        {activeTasks.length === 0 ? (
+          <p>{teamFilter || assigneeFilter ? "No tasks match this filter." : "No open tasks."}</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 24, maxWidth: 640 }}>
             {Array.from(tasksByCategory.entries()).map(([category, categoryTasks]) => (
@@ -395,6 +399,30 @@ export default async function BrandHubPage({
             ))}
           </div>
         )}
+
+        <details style={{ marginTop: 24, maxWidth: 640 }}>
+          <summary style={{ cursor: "pointer", fontWeight: 600 }}>Completed ({doneTasks.length})</summary>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+            {doneTasks.length === 0 ? (
+              <p>
+                <small style={{ color: "var(--muted)" }}>No completed tasks yet.</small>
+              </p>
+            ) : (
+              doneTasks.map((t: any) => (
+                <TaskCard
+                  key={t.id}
+                  task={t}
+                  comments={commentsByTask.get(t.id) ?? []}
+                  boundUpdateStatus={boundUpdateStatus}
+                  boundUpdateTeam={boundUpdateTeam}
+                  boundUpdateDueDate={boundUpdateDueDate}
+                  boundDeleteTask={boundDeleteTask}
+                  boundAddComment={boundAddComment}
+                />
+              ))
+            )}
+          </div>
+        </details>
 
         <div className="card" style={{ marginTop: 16, maxWidth: 640 }}>
           <form action={boundCreateTask} style={{ display: "flex", flexDirection: "column", gap: 12 }}>

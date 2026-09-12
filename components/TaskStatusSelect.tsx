@@ -1,6 +1,7 @@
 "use client";
 
 import { TASK_STATUSES } from "@/lib/task-status";
+import { useSavedFeedback } from "./useSavedFeedback";
 
 export function TaskStatusSelect({
   taskId,
@@ -9,15 +10,21 @@ export function TaskStatusSelect({
 }: {
   taskId: string;
   currentStatus: string;
-  action: (formData: FormData) => void;
+  action: (formData: FormData) => Promise<void>;
 }) {
+  const { saved, run } = useSavedFeedback();
+
   return (
-    <form action={action}>
-      <input type="hidden" name="taskId" value={taskId} />
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       <select
         name="status"
         defaultValue={currentStatus}
-        onChange={(e) => e.currentTarget.form?.requestSubmit()}
+        onChange={(e) => {
+          const formData = new FormData();
+          formData.set("taskId", taskId);
+          formData.set("status", e.target.value);
+          run(action, formData);
+        }}
       >
         {TASK_STATUSES.map((s) => (
           <option key={s} value={s}>
@@ -25,6 +32,7 @@ export function TaskStatusSelect({
           </option>
         ))}
       </select>
-    </form>
+      {saved && <small style={{ color: "#16A34A", fontWeight: 600 }}>Saved ✓</small>}
+    </div>
   );
 }
