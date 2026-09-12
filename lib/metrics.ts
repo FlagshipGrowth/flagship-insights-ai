@@ -50,9 +50,14 @@ export async function getBrandMetricsTimeSeries(brandId: string, period: Period)
     order by date
   `;
   // The neon driver returns `numeric` columns as strings (to avoid float precision loss on
-  // large values) — MetricsChart does real arithmetic (.toFixed, etc.) on `value`, so convert
+  // large values) but parses `date` into a native Date object — MetricsChart does real
+  // arithmetic (.toFixed) on value and string ops (.localeCompare) on date, so normalize both
   // here rather than let every consumer remember to.
-  return rows.map((r: any) => ({ ...r, value: Number(r.value) }));
+  return rows.map((r: any) => ({
+    ...r,
+    date: r.date instanceof Date ? r.date.toISOString() : String(r.date),
+    value: Number(r.value),
+  }));
 }
 
 export async function getBrandsForClient(clientId: string) {
