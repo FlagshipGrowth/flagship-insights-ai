@@ -143,6 +143,7 @@ export interface TaskComment {
   taskId: string;
   author: string;
   body: string;
+  isSystem: boolean;
   createdAt: string;
 }
 
@@ -151,7 +152,7 @@ export interface TaskComment {
 export async function getTaskCommentsForBrand(brandId: string): Promise<TaskComment[]> {
   const sql = getDb();
   const rows = await sql`
-    select c.id, c.task_id, c.author, c.body, c.created_at
+    select c.id, c.task_id, c.author, c.body, c.is_system, c.created_at
     from task_comments c
     join tasks t on t.id = c.task_id
     where t.brand_id = ${brandId}
@@ -162,6 +163,32 @@ export async function getTaskCommentsForBrand(brandId: string): Promise<TaskComm
     taskId: r.task_id,
     author: r.author,
     body: r.body,
+    isSystem: r.is_system,
     createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
   }));
+}
+
+/** All comments for a single task, across brands — used by the admin cross-brand task view. */
+export async function getTaskComments(taskId: string): Promise<TaskComment[]> {
+  const sql = getDb();
+  const rows = await sql`
+    select id, task_id, author, body, is_system, created_at
+    from task_comments where task_id = ${taskId} order by created_at asc
+  `;
+  return rows.map((r: any) => ({
+    id: r.id,
+    taskId: r.task_id,
+    author: r.author,
+    body: r.body,
+    isSystem: r.is_system,
+    createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
+  }));
+}
+
+/** Records an automated "changed X to Y" entry in a task's comment thread, attributed to whoever
+ * made the change — same thread real comments show up in, so people see the full history in one
+ * place. Not used for task creation itself, only edits made afterward. */
+export async function logTaskActivity(taskId: string, author: string, message: string): Promise<void> {
+  const sql = getDb();
+  await sql`insert into task_comments (task_id, author, body, is_system) values (${taskId}, ${author}, ${message}, true)`;
 }

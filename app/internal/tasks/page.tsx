@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import {
   getOpenTaskCountsByTeam,
   getAllTasksForAdmin,
+  logTaskActivity,
   TASK_STATUSES,
   TASK_SORTS,
   type TaskSort,
@@ -12,6 +13,7 @@ import {
 import { TEAMS } from "@/lib/teams";
 import { TaskStatusSelect } from "@/components/TaskStatusSelect";
 import { TaskTeamSelect } from "@/components/TaskTeamSelect";
+import { TaskDueDateInput } from "@/components/TaskDueDateInput";
 
 const TASK_SORT_LABELS: Record<TaskSort, string> = {
   default: "Status",
@@ -30,7 +32,15 @@ async function updateTaskStatusAdmin(formData: FormData) {
   if (!TASK_STATUSES.includes(status as any)) return;
 
   const sql = getDb();
+  const before = await sql`select status from tasks where id = ${taskId}`;
+  if (before.length === 0 || before[0].status === status) return;
+
   await sql`update tasks set status = ${status}, updated_at = now() where id = ${taskId}`;
+  await logTaskActivity(
+    taskId,
+    ctx.email,
+    `changed status from ${before[0].status.replace("_", " ")} to ${status.replace("_", " ")}`
+  );
   revalidatePath("/internal/tasks");
 }
 
@@ -44,7 +54,30 @@ async function updateTaskTeamAdmin(formData: FormData) {
   if (team && !(TEAMS as readonly string[]).includes(team)) return;
 
   const sql = getDb();
+  const before = await sql`select team from tasks where id = ${taskId}`;
+  if (before.length === 0 || before[0].team === team) return;
+
   await sql`update tasks set team = ${team}, updated_at = now() where id = ${taskId}`;
+  await logTaskActivity(taskId, ctx.email, `changed team to ${team ?? "unassigned"}`);
+  revalidatePath("/internal/tasks");
+}
+
+async function updateTaskDueDateAdmin(formData: FormData) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || ctx.role !== "internal_admin") return;
+
+  const taskId = formData.get("taskId") as string;
+  const dueDate = (formData.get("dueDate") as string) || null;
+
+  const sql = getDb();
+  const before = await sql`select due_date from tasks where id = ${taskId}`;
+  if (before.length === 0) return;
+  const beforeDate = before[0].due_date instanceof Date ? before[0].due_date.toISOString().slice(0, 10) : null;
+  if (beforeDate === dueDate) return;
+
+  await sql`update tasks set due_date = ${dueDate}, updated_at = now() where id = ${taskId}`;
+  await logTaskActivity(taskId, ctx.email, `changed due date to ${dueDate ?? "none"}`);
   revalidatePath("/internal/tasks");
 }
 
@@ -164,17 +197,16 @@ export default async function AdminTasksPage({
                     </td>
                     <td>{t.assignee ?? "—"}</td>
                     <td>
-                      {t.dueDate ? (
-                        <span
-                          style={{
-                            color: new Date(t.dueDate) < new Date() && t.status !== "done" ? "#DC2626" : undefined,
-                          }}
-                        >
-                          {new Date(t.dueDate).toLocaleDateString()}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
+                      <span
+                        style={{
+                          color:
+                            t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "done"
+                              ? "#DC2626"
+                              : undefined,
+                        }}
+                      >
+                        <TaskDueDateInput taskId={t.id} currentDueDate={t.dueDate} action={updateTaskDueDateAdmin} />
+                      </span>
                     </td>
                   </tr>
                 ))}

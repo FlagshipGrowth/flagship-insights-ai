@@ -33,6 +33,25 @@ export async function postSlackMessage({ channel, text, blocks, thread_ts }: Sla
 }
 
 /**
+ * Opens a modal. `trigger_id` comes from the interaction that's opening it (a button click, a
+ * slash command) and expires ~3 seconds after Slack issued it, so this must be called right
+ * away — not deferred to a background function like the rest of the Slack integration.
+ */
+export async function openSlackView({ trigger_id, view }: { trigger_id: string; view: unknown }) {
+  const res = await fetch(`${SLACK_API}/views.open`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}`,
+      "Content-Type": "application/json; charset=utf-8",
+    },
+    body: JSON.stringify({ trigger_id, view }),
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(`Slack API error (views.open): ${data.error}`);
+  return data;
+}
+
+/**
  * Verifies an incoming request actually came from Slack.
  * IMPORTANT: must be called with the RAW request body — read it as text
  * BEFORE any JSON.parse or form parsing, or the signature won't match.

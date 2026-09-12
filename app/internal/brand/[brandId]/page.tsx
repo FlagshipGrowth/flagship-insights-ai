@@ -4,7 +4,14 @@ import { getUserContext, isInternalStaff, canStaffAccessBrand } from "@/lib/user
 import { getBrandMetrics, getBrandMetricsTimeSeries, PERIODS, type Period } from "@/lib/metrics";
 import { getBrandName } from "@/lib/seo";
 import { getBrandReportLinks, getInventoryPreview, getReconciliationSummary } from "@/lib/reports";
-import { getTasks, getTaskCommentsForBrand, TASK_STATUSES, TASK_SORTS, type TaskSort } from "@/lib/tasks";
+import {
+  getTasks,
+  getTaskCommentsForBrand,
+  logTaskActivity,
+  TASK_STATUSES,
+  TASK_SORTS,
+  type TaskSort,
+} from "@/lib/tasks";
 import { getBrandSlackChannelId } from "@/lib/brands";
 import { TEAMS } from "@/lib/teams";
 import { getDb } from "@/lib/db";
@@ -54,7 +61,15 @@ async function updateTaskStatus(brandId: string, formData: FormData) {
   if (!TASK_STATUSES.includes(status as any)) return;
 
   const sql = getDb();
+  const before = await sql`select status from tasks where id = ${taskId} and brand_id = ${brandId}`;
+  if (before.length === 0 || before[0].status === status) return;
+
   await sql`update tasks set status = ${status}, updated_at = now() where id = ${taskId} and brand_id = ${brandId}`;
+  await logTaskActivity(
+    taskId,
+    ctx.email,
+    `changed status from ${before[0].status.replace("_", " ")} to ${status.replace("_", " ")}`
+  );
   revalidatePath(`/internal/brand/${brandId}`);
 }
 
@@ -69,7 +84,31 @@ async function updateTaskTeam(brandId: string, formData: FormData) {
   if (team && !(TEAMS as readonly string[]).includes(team)) return;
 
   const sql = getDb();
+  const before = await sql`select team from tasks where id = ${taskId} and brand_id = ${brandId}`;
+  if (before.length === 0 || before[0].team === team) return;
+
   await sql`update tasks set team = ${team}, updated_at = now() where id = ${taskId} and brand_id = ${brandId}`;
+  await logTaskActivity(taskId, ctx.email, `changed team to ${team ?? "unassigned"}`);
+  revalidatePath(`/internal/brand/${brandId}`);
+}
+
+async function updateTaskDueDate(brandId: string, formData: FormData) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isInternalStaff(ctx)) return;
+  if (!(await canStaffAccessBrand(ctx, brandId))) return;
+
+  const taskId = formData.get("taskId") as string;
+  const dueDate = (formData.get("dueDate") as string) || null;
+
+  const sql = getDb();
+  const before = await sql`select due_date from tasks where id = ${taskId} and brand_id = ${brandId}`;
+  if (before.length === 0) return;
+  const beforeDate = before[0].due_date instanceof Date ? before[0].due_date.toISOString().slice(0, 10) : null;
+  if (beforeDate === dueDate) return;
+
+  await sql`update tasks set due_date = ${dueDate}, updated_at = now() where id = ${taskId} and brand_id = ${brandId}`;
+  await logTaskActivity(taskId, ctx.email, `changed due date to ${dueDate ?? "none"}`);
   revalidatePath(`/internal/brand/${brandId}`);
 }
 
@@ -159,6 +198,7 @@ export default async function BrandHubPage({
   const boundCreateTask = createTask.bind(null, brandId);
   const boundUpdateStatus = updateTaskStatus.bind(null, brandId);
   const boundUpdateTeam = updateTaskTeam.bind(null, brandId);
+  const boundUpdateDueDate = updateTaskDueDate.bind(null, brandId);
   const boundDeleteTask = deleteTask.bind(null, brandId);
   const boundAddComment = addTaskComment.bind(null, brandId);
   const boundUpdateSlackChannel = updateSlackChannel.bind(null, brandId);
@@ -298,6 +338,7 @@ export default async function BrandHubPage({
                       comments={commentsByTask.get(t.id) ?? []}
                       boundUpdateStatus={boundUpdateStatus}
                       boundUpdateTeam={boundUpdateTeam}
+                      boundUpdateDueDate={boundUpdateDueDate}
                       boundDeleteTask={boundDeleteTask}
                       boundAddComment={boundAddComment}
                     />

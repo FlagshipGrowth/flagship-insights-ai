@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Badge } from "@/components/Badge";
 import { TaskStatusSelect } from "@/components/TaskStatusSelect";
 import { TaskTeamSelect } from "@/components/TaskTeamSelect";
+import { TaskDueDateInput } from "@/components/TaskDueDateInput";
 
 interface Task {
   id: string;
@@ -21,6 +22,7 @@ interface Comment {
   id: string;
   author: string;
   body: string;
+  isSystem: boolean;
   createdAt: string;
 }
 
@@ -29,6 +31,7 @@ export function TaskCard({
   comments,
   boundUpdateStatus,
   boundUpdateTeam,
+  boundUpdateDueDate,
   boundDeleteTask,
   boundAddComment,
 }: {
@@ -36,6 +39,7 @@ export function TaskCard({
   comments: Comment[];
   boundUpdateStatus: (formData: FormData) => void;
   boundUpdateTeam: (formData: FormData) => void;
+  boundUpdateDueDate: (formData: FormData) => void;
   boundDeleteTask: (formData: FormData) => void;
   boundAddComment: (formData: FormData) => void;
 }) {
@@ -136,7 +140,7 @@ export function TaskCard({
               <div>
                 <small style={{ color: "var(--muted)" }}>Due date</small>
                 <br />
-                {task.due_date ? new Date(task.due_date).toLocaleDateString() : "—"}
+                <TaskDueDateInput taskId={task.id} currentDueDate={task.due_date} action={boundUpdateDueDate} />
               </div>
               <div>
                 <small style={{ color: "var(--muted)" }}>Created</small>
@@ -154,13 +158,21 @@ export function TaskCard({
               </p>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
-                {comments.map((c) => (
-                  <div key={c.id}>
-                    <small style={{ fontWeight: 600 }}>{c.author}</small>{" "}
-                    <small style={{ color: "var(--muted)" }}>{new Date(c.createdAt).toLocaleString()}</small>
-                    <p style={{ margin: "2px 0 0" }}>{c.body}</p>
-                  </div>
-                ))}
+                {comments.map((c) =>
+                  c.isSystem ? (
+                    <div key={c.id}>
+                      <small style={{ color: "var(--muted)", fontStyle: "italic" }}>
+                        {c.author} {c.body} · {new Date(c.createdAt).toLocaleString()}
+                      </small>
+                    </div>
+                  ) : (
+                    <div key={c.id}>
+                      <small style={{ fontWeight: 600 }}>{c.author}</small>{" "}
+                      <small style={{ color: "var(--muted)" }}>{new Date(c.createdAt).toLocaleString()}</small>
+                      <p style={{ margin: "2px 0 0" }}>{c.body}</p>
+                    </div>
+                  )
+                )}
               </div>
             )}
 
