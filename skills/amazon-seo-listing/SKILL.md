@@ -69,8 +69,14 @@ Poll `get_listing_copy_generation_status` (free, no extra cost) until `complete`
 
 Starting from Data Dive's draft (step 4), reconcile it against the working keyword list (step 3) and finalize the four fields below — in this order: Item Name → Item Highlights → Bullet Points → Backend Search Terms. De-duplicate keywords across every field below; nothing needs to be indexed twice, and backend terms exist specifically to catch words *not* already used elsewhere.
 
-#### A. Item Name (Title) — hard limit 75 characters including spaces
-Priority order, fitting as much as matters in ~75 chars:
+#### A. Item Name (Title) — hard limit 75 characters including spaces — always produce TWO
+
+**Always generate two distinct, independently compliant titles, labeled Title A and Title B, for the account manager to A/B test.** Never hand off just one. Vary the actual approach between them (different keyword priority, different attribute emphasis, or a different one of the high-value keyword slots) rather than a trivial reword — two titles that only differ by word order aren't a meaningful test.
+- **Title A**: from Data Dive's `generate_listing_copy` result (step 4), reconciled per the rules below.
+- **Title B**: a second compliant option built by you from the same niche research (step 3) — either a second `generate_listing_copy` call with a different `strategy` (costs one more AI Copywriter prompt — confirm the cost first, same as any other spend) or a manually-built alternative emphasizing a different keyword/attribute priority at no extra Data Dive cost. Default to the manual option unless the requester asks for a second AI-generated variant.
+- Run **both** titles through every check below and in the Section 7 compliance self-check independently — a passing Title A doesn't excuse a non-compliant Title B.
+
+Priority order for each, fitting as much as matters in ~75 chars:
 1. Brand name (required — must appear)
 2. Product/model name
 3. Key variating attribute(s) that distinguish this ASIN from sibling variants (size, count, flavor, color, etc.)
@@ -99,13 +105,20 @@ Each bullet:
 - Never include: fabric content, care instructions, or country of origin (these belong in their own listing fields, not bullets)
 - Never include: subjective/comparative claims ("best," "strongest") unless verifiable on packaging; competitor comparisons; cross-sell references to other ASINs; unsubstantiated awards/survey claims
 
-#### D. Backend Search Terms — one flat string, byte-limited (not character-limited)
-- Confirm the current byte cap in Seller Central before finalizing — this has changed before, don't hardcode an old number
+#### D. Backend Search Terms — one flat string, byte limit **249 bytes** (confirmed 2026-09-12 — Amazon has changed this before, so re-confirm in Seller Central if this instruction is old)
+
+**Fill toward the limit — don't stop at a handful of "obviously good" words.** A short, safe-looking list under half the budget is a miss, not a virtue: every unused byte is a search term you left on the table. Work the full pipeline before finalizing:
+1. Pull every candidate word from `get_niche_keywords` (individual words from real multi-word keyword phrases) and `get_niche_roots` (already-extracted word roots, ranked by `broadSearchVolume`) for the niche — not just the handful that jump out.
+2. Filter the candidate list: drop anything already used in Title/Highlights/Bullets, stopwords, words that misrepresent the actual product (an attribute the product doesn't really have — e.g. don't add "adjustable" or "snapback" for a fitted-only cap just because they're high-volume; accuracy beats byte-filling), invented misspellings, and duplicate singular/plural forms (keep the one with the real confirmed search volume).
+3. Rank what's left by search volume/relevancy and keep adding words, recomputing the running UTF-8 byte length (with a single space between each) after every addition, **until the next candidate word would push the total over 249 bytes** — then stop. Don't pad with low-value filler just to hit the number, but do exhaust genuinely relevant candidates before settling for a short list.
+4. State the final byte count explicitly when you hand this off (e.g. "231/249 bytes") so the account manager can see how much of the budget was actually used.
+
+Other rules, unchanged:
 - All lowercase, space-separated, no punctuation (no commas/semicolons/dashes)
 - No word repeated; no word that already appears in Title/Highlights/Bullets
-- Pick one form per word — singular OR plural, not both
+- Pick one form per word — singular OR plural, not both (prefer whichever form the research shows more search volume for)
 - Strip stopwords: "a," "an," "and," "by," "for," "of," "the," "with"
-- Include real synonyms, abbreviations, and genuine alternate spellings a shopper might search — never invent common misspellings
+- Include real synonyms, abbreviations, alternate-language terms, and genuine alternate spellings a shopper might search, as long as they're backed by actual search volume in the research — never invent common misspellings or add a plausible-sounding term with no data behind it
 - Flag if this product type is one of Amazon's 23 types where this field is *required*, not optional (bath toy, body paint, bath pillow, bath safety seating, bar tool set, bathroom container set, bathtub shower mat, broom, bookend, bed skirt, artificial tree, body positioner, bedding set, body deodorant, balloon, bed linen, board game, bed linen set, blanket, body care product, beauty, art and craft supply, party favor) — an empty field here for one of these is a compliance gap, say so explicitly.
 
 ## 7. Compliance self-check — do this explicitly, in order, before posting anything
@@ -123,7 +136,7 @@ Go through every check below against your own draft. If anything fails, fix it a
 - No guarantee/warranty language unless it's an approved, factual warranty statement
 - No keyword stuffing — every token in the Title especially must earn its place
 
-**Title specifically:**
+**Title specifically — check both Title A and Title B independently:**
 - Exact character count ≤ 75 (count it, don't estimate)
 - Brand name token present
 
@@ -143,7 +156,7 @@ Go through every check below against your own draft. If anything fails, fix it a
 - No near-duplicate content between bullets, or with Title/Highlights
 
 **Backend Search Terms specifically:**
-- Byte length (UTF-8), not character length, checked against the current Seller Central cap
+- Byte length (UTF-8), not character length — must be as close to the 249-byte cap as genuinely relevant candidates allow, not just "under the limit"
 - All lowercase, no punctuation
 - No word repeated; no word already used in Title/Highlights/Bullets
 - No stopwords ("a," "an," "and," "by," "for," "of," "the," "with")
@@ -157,9 +170,13 @@ If you're not fully certain whether a candidate word or phrase is compliant, lea
 
 ## 8. Hand off for review
 
-Post to the brand's Slack channel (from the channel/brand context, or ask if unknown):
+Post to the brand's Slack channel (from the channel/brand context, or ask if unknown). Always include, every time:
 
-- The Item Name, Item Highlights, all Bullet Points, and the Backend Search Terms string, clearly labeled
+- **Both Title A and Title B**, each labeled and each with its character count (e.g. "64/75 chars"), so the account manager can pick or run both as an A/B test
+- Item Highlights, with its character count
+- All Bullet Points
+- The Backend Search Terms string, with its **byte count out of 249** (e.g. "231/249 bytes")
+- **The Ranking Juice score** from `generate_listing_copy`'s `result.rankingJuice` (or from `get_ranking_juice` if working from a manual draft) — report the number itself, and where useful, how it compares to the niche's strongest competitor from `get_niche_competitors`/`get_ranking_juice` so the account manager has a sense of scale, not just a bare figure
 - The product name, SKU, and ASIN (if any) this is for
 - A one-line note on what changed / why these keywords, if useful context
 - **Tag the brand's assigned account manager by name**, and ask them to review before it goes to the client — this is a draft for their approval, not a finished submission. Do not contact the client directly.
