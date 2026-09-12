@@ -4,14 +4,21 @@ import { getUserContext, isInternalStaff, canStaffAccessBrand } from "@/lib/user
 import { getBrandMetrics, getBrandMetricsTimeSeries, PERIODS, type Period } from "@/lib/metrics";
 import { getBrandName } from "@/lib/seo";
 import { getBrandReportLinks, getInventoryPreview, getReconciliationSummary } from "@/lib/reports";
-import { getTasks, TASK_STATUSES } from "@/lib/tasks";
+import { getTasks, getTaskCommentsForBrand, TASK_STATUSES, TASK_SORTS, type TaskSort } from "@/lib/tasks";
 import { getBrandSlackChannelId } from "@/lib/brands";
 import { getDb } from "@/lib/db";
 import { Badge } from "@/components/Badge";
 import { MetricsChart } from "@/components/MetricsChart";
 import { InventoryPreviewCard } from "@/components/InventoryPreviewCard";
 import { ReconciliationPreviewCard } from "@/components/ReconciliationPreviewCard";
-import { TaskStatusSelect } from "./TaskStatusSelect";
+import { TaskCard } from "./TaskCard";
+
+const TASK_SORT_LABELS: Record<TaskSort, string> = {
+  default: "Status",
+  created_desc: "Newest created",
+  created_asc: "Oldest created",
+  due_date: "Due date",
+};
 
 async function createTask(brandId: string, formData: FormData) {
   "use server";
@@ -60,6 +67,24 @@ async function deleteTask(brandId: string, formData: FormData) {
   revalidatePath(`/internal/brand/${brandId}`);
 }
 
+async function addTaskComment(brandId: string, formData: FormData) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isInternalStaff(ctx)) return;
+  if (!(await canStaffAccessBrand(ctx, brandId))) return;
+
+  const taskId = formData.get("taskId") as string;
+  const body = (formData.get("body") as string)?.trim();
+  if (!taskId || !body) return;
+
+  const sql = getDb();
+  await sql`
+    insert into task_comments (task_id, author, body)
+    select id, ${ctx.email}, ${body} from tasks where id = ${taskId} and brand_id = ${brandId}
+  `;
+  revalidatePath(`/internal/brand/${brandId}`);
+}
+
 async function updateSlackChannel(brandId: string, formData: FormData) {
   "use server";
   const ctx = await getUserContext();
@@ -77,7 +102,7 @@ export default async function BrandHubPage({
   searchParams,
 }: {
   params: Promise<{ brandId: string }>;
-  searchParams: Promise<{ period?: string }>;
+  searchParams: Promise<{ period?: string; taskSort?: string }>;
 }) {
   const { brandId } = await params;
   const ctx = await getUserContext();
@@ -88,15 +113,24 @@ export default async function BrandHubPage({
   const brandName = await getBrandName(brandId);
   if (!brandName) redirect("/internal");
 
-  const { period: periodParam } = await searchParams;
+  const { period: periodParam, taskSort: taskSortParam } = await searchParams;
   const period: Period = (PERIODS as string[]).includes(periodParam ?? "") ? (periodParam as Period) : "mtd";
+  const taskSort: TaskSort = (TASK_SORTS as readonly string[]).includes(taskSortParam ?? "")
+    ? (taskSortParam as TaskSort)
+    : "default";
 
   const metrics = await getBrandMetrics(brandId, period);
   const metricsSeries = await getBrandMetricsTimeSeries(brandId, period);
   const { weeklyReportUrls, inventoryReportUrls, reconciliationReportUrls } = await getBrandReportLinks(brandId);
   const inventoryPreview = await getInventoryPreview(brandId);
   const reconciliationSummary = await getReconciliationSummary(brandId);
-  const tasks = await getTasks(brandId);
+  const tasks = await getTasks(brandId, taskSort);
+  const comments = await getTaskCommentsForBrand(brandId);
+  const commentsByTask = new Map<string, typeof comments>();
+  for (const c of comments) {
+    if (!commentsByTask.has(c.taskId)) commentsByTask.set(c.taskId, []);
+    commentsByTask.get(c.taskId)!.push(c);
+  }
   const slackChannelId = await getBrandSlackChannelId(brandId);
   const tasksByCategory = new Map<string, typeof tasks>();
   for (const t of tasks as any[]) {
@@ -107,6 +141,7 @@ export default async function BrandHubPage({
   const boundCreateTask = createTask.bind(null, brandId);
   const boundUpdateStatus = updateTaskStatus.bind(null, brandId);
   const boundDeleteTask = deleteTask.bind(null, brandId);
+  const boundAddComment = addTaskComment.bind(null, brandId);
   const boundUpdateSlackChannel = updateSlackChannel.bind(null, brandId);
 
   return (
@@ -217,6 +252,18 @@ export default async function BrandHubPage({
       <section>
         <h2>Tasks</h2>
 
+        <nav className="pill-nav">
+          {TASK_SORTS.map((s) => (
+            <a
+              key={s}
+              href={`/internal/brand/${brandId}?period=${period}&taskSort=${s}`}
+              className={s === taskSort ? "active" : ""}
+            >
+              {TASK_SORT_LABELS[s]}
+            </a>
+          ))}
+        </nav>
+
         {tasks.length === 0 ? (
           <p>No tasks yet.</p>
         ) : (
@@ -226,32 +273,14 @@ export default async function BrandHubPage({
                 <h3 style={{ marginBottom: 8 }}>{category}</h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   {(categoryTasks as any[]).map((t: any) => (
-                    <div
+                    <TaskCard
                       key={t.id}
-                      className="card"
-                      style={{ display: "flex", justifyContent: "space-between", gap: 12 }}
-                    >
-                      <div>
-                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                          <strong>{t.title}</strong>
-                          <Badge variant={t.status}>{t.status.replace("_", " ")}</Badge>
-                        </div>
-                        {t.description && <p style={{ margin: "4px 0" }}>{t.description}</p>}
-                        <small>
-                          {t.assignee ? `${t.assignee}` : "Unassigned"}
-                          {t.due_date ? ` · due ${new Date(t.due_date).toLocaleDateString()}` : ""}
-                        </small>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
-                        <TaskStatusSelect taskId={t.id} currentStatus={t.status} action={boundUpdateStatus} />
-                        <form action={boundDeleteTask}>
-                          <input type="hidden" name="taskId" value={t.id} />
-                          <button type="submit" className="secondary">
-                            Delete
-                          </button>
-                        </form>
-                      </div>
-                    </div>
+                      task={t}
+                      comments={commentsByTask.get(t.id) ?? []}
+                      boundUpdateStatus={boundUpdateStatus}
+                      boundDeleteTask={boundDeleteTask}
+                      boundAddComment={boundAddComment}
+                    />
                   ))}
                 </div>
               </div>
