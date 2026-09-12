@@ -3,6 +3,7 @@ import { getDb } from "./lib/db";
 import { getPeriodComparison } from "./lib/metrics";
 import { runChannelSubagent, CHANNEL_SYSTEM_PROMPTS } from "./lib/insights/subagents";
 import { synthesize } from "./lib/insights/synthesis";
+import { postSlackMessage } from "./lib/slack";
 
 const DEFAULT_MODEL = "claude-sonnet-5";
 
@@ -43,10 +44,37 @@ export default async (req: Request) => {
 
   const recommendation = await synthesize(client, brand.name, findings, DEFAULT_MODEL);
 
-  await sql`
+  const inserted = await sql`
     insert into insights (brand_id, period, summary, recommendations, source_refs)
     values (${brandId}, 'last_30_days', ${recommendation}, ${JSON.stringify(findings)}, '[]')
+    returning id
   `;
+
+  if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_ALERTS_CHANNEL_ID) {
+    const insightId = inserted[0].id as string;
+    const title = `${brand.name} — new recommendation`;
+    await postSlackMessage({
+      channel: process.env.SLACK_ALERTS_CHANNEL_ID,
+      text: `New insight for ${brand.name}: ${recommendation.slice(0, 200)}`,
+      blocks: [
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: `*${brand.name}* — new recommendation\n${recommendation}` },
+        },
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: "Create task" },
+              action_id: "create_task_from_alert",
+              value: JSON.stringify({ insightId, title }),
+            },
+          ],
+        },
+      ],
+    });
+  }
 
   return new Response(JSON.stringify({ recommendation }), { status: 200 });
 };
