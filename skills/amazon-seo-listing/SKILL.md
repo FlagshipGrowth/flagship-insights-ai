@@ -17,6 +17,16 @@ Before starting, confirm you have all three. If any are missing, ask for them in
 
 Also confirm **which brand's Slack channel** this is for, and **who the account manager is** — if you don't already know, ask, or check the brand's page in the internal portal (`/internal/brand/[brandId]`) for the assigned account manager and Slack channel ID.
 
+## Tools
+
+- **Data Dive MCP** (`create_niche_dive`, `get_dive_status`, `list_niches`, `get_niche_keywords`, `get_niche_roots`, `get_niche_competitors`, `get_ranking_juice`, `generate_listing_copy`, `get_listing_copy_generation_status`, `get_quota`) — niche/keyword research, ranking-juice scoring, and AI-drafted listing copy.
+- **Helium10 MCP** — reverse-ASIN keyword lookup and listing lookup for already-live ASINs (`get_keywords_by_asin`, `retrieve_listing_by_asin`, `get_listing_details`), used to seed `currentListing` and cross-check keyword data against Data Dive's.
+
+**Spend control — read before doing anything else:** `create_niche_dive` spends Dive tokens and `generate_listing_copy` spends an AI Copywriter prompt from `get_quota`'s monthly allowance — both are irreversible and **must not be retried** on error/timeout (poll `get_dive_status` / `get_listing_copy_generation_status` instead, per their own tool descriptions). Before spending either:
+1. Call `get_quota` and confirm there's headroom (`DIVED_ASINS` / `AI_COPYWRITER_PROMPTS`). If it's tight, say so and ask before proceeding.
+2. Call `list_niches` with `searchAsin` (if you have an ASIN) or `searchText` (the product's core keyword) first — this account already has hundreds of niches dived; reuse an existing one instead of spending a new dive token if a close match exists. If the existing niche's `latestResearchDate` looks stale relative to the request, `redive_niche` (`mode: same_competitors` to refresh as-is) is an option too — it also spends tokens and needs the same confirmation.
+3. `create_niche_dive`, `redive_niche`, and `generate_listing_copy` all require `confirm: true` — only set it after telling the requester what the call will cost and getting an explicit go-ahead. Never retry any of the three on an error or timeout; poll their status tool instead.
+
 ## Procedure
 
 ### 1. Familiarize yourself with the product and brand
@@ -25,28 +35,39 @@ Read the website product page link. Identify:
 - Brand voice and tone
 - Where this product sits in its niche/category
 
-### 2. Initial niche analysis
-Using Helium10 tools (competitor/niche search, e.g. niche search, competitor lookup by ASIN/keyword), assess:
-- Number of competitors and how saturated the category is
-- Quality of existing top listings
-- Pricing and positioning trends
+### 2. Get or create the niche
+- Search first: `list_niches` with `searchAsin` (competitor/own ASIN, if known) or `searchText` (product's core keyword).
+- If nothing close exists, pick a strong seed ASIN (the product's own ASIN if live, otherwise a representative top competitor found via Helium10) and run `create_niche_dive` (marketplace, asin, numberOfCompetitors ≥ 2 — more competitors gives a deeper read but costs more) — after the spend-control confirmation above.
+- Poll `get_dive_status` with the returned `diveId` until `success`, then use its `nicheId` for everything below.
 
-### 3. Keyword research
-- **If the product is already live** (you have an ASIN): pull its current ranking/organic keywords via Helium10's reverse-ASIN keyword lookup (Cerebro-equivalent), and review how it's currently ranking.
-- **Competitor and market keyword research**: use Data Dive's keyword/competitor tools. Capture each candidate keyword's search volume, relevancy, and Data Dive's ranking-juice score.
-- **Refine to a working keyword list**: keep only keywords that are genuinely usable in the copy — filter out anything low-volume, irrelevant, or that doesn't earn its place. This becomes your working keyword list for steps 4–6.
+### 3. Research the niche
+Pull all four for the niche:
+- `get_niche_keywords` — master keyword list: search volume, relevancy, competitor organic ranks
+- `get_niche_roots` — highest-impact word roots by broad search volume, for prioritizing what earns a place in Title/Highlights
+- `get_niche_competitors` — competitor ASINs, titles, BSR, price, ratings, and their overall Ranking Juice, for niche saturation and positioning
+- `get_ranking_juice` — per-competitor breakdown of what's actually driving their ranking (title/bullets/description contributions), and the niche's `optimizedListing` target — this is the "ranking juice" the SOP wants you to optimize toward
 
-### 4. Draft the content
-Write a base draft using the research above and the brand voice from step 1. If the product already has a live, well-performing listing, use it as a reference rather than starting from nothing.
+If the product is already live (you have an ASIN): also pull its current keywords/rank via Helium10's reverse-ASIN lookup, and its live content via `retrieve_listing_by_asin`/`get_listing_details` to use as `currentListing` in step 4.
+
+**Refine to a working keyword list**: from `get_niche_keywords` + `get_niche_roots`, keep only keywords that are genuinely usable — filter out anything low-volume, irrelevant, or that doesn't earn its place given the 75-character Title budget. This is what step 4/6 draw from.
+
+### 4. Generate the draft via Data Dive's AI Copywriter
+Call `generate_listing_copy` with:
+- `nicheId` from step 2
+- `currentListing`: the live listing's title/description/bullets if the product is live (from step 3); otherwise a best-effort stub built from the product name, website USPs, and category — it still needs *something* to rewrite from
+- `strategy`: default to `cosmo-rufus` (targets Amazon's relevance model *and* Rufus, covering this SOP's step 5 below in the same pass) unless the requester asks for a different one (`cosmo`, `ranking-juice`, `nlp`)
+- After the spend-control confirmation above (`confirm: true`)
+
+Poll `get_listing_copy_generation_status` (free, no extra cost) until `complete`, then take its `result.title`, `result.bullets`, `result.description`, `result.itemHighlights`, and `result.rankingJuice` as your working draft. Data Dive's own writer doesn't know Amazon's content-policy rules (Section 7 below) or write Backend Search Terms — that's still on you in steps 6–7.
 
 ### 5. Rufus AI FAQ check
 - If the product is live: open its Amazon listing and check the Rufus AI FAQ widget on the product detail page for commonly asked questions.
 - If not live yet: check the top competitor's listing's Rufus FAQs instead.
-- Make sure your bullets/description address the real questions shoppers are asking, where relevant.
+- Make sure the bullets/description address the real questions shoppers are asking, where relevant — adjust the draft from step 4 if something important is missing. (`cosmo-rufus` should already lean this way, but verify against the actual live widget rather than trusting the strategy name alone.)
 
 ### 6. Build the final output
 
-Apply the keyword list from step 3, prioritized by relevancy and ranking-juice, into the three fields below — in this order: Item Name → Item Highlights → Bullet Points → Backend Search Terms. De-duplicate keywords across every field below; nothing needs to be indexed twice, and backend terms exist specifically to catch words *not* already used elsewhere.
+Starting from Data Dive's draft (step 4), reconcile it against the working keyword list (step 3) and finalize the four fields below — in this order: Item Name → Item Highlights → Bullet Points → Backend Search Terms. De-duplicate keywords across every field below; nothing needs to be indexed twice, and backend terms exist specifically to catch words *not* already used elsewhere.
 
 #### A. Item Name (Title) — hard limit 75 characters including spaces
 Priority order, fitting as much as matters in ~75 chars:
