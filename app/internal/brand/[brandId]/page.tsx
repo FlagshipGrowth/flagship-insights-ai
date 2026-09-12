@@ -216,35 +216,6 @@ export default async function BrandHubPage({
 
       <section>
         <h2>Tasks</h2>
-        <div className="card" style={{ marginBottom: 16, maxWidth: 640 }}>
-          <form action={boundCreateTask} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <label>
-              Title
-              <br />
-              <input name="title" required style={{ width: "100%" }} />
-            </label>
-            <div style={{ display: "flex", gap: 12 }}>
-              <label style={{ flex: 1 }}>
-                Assignee
-                <br />
-                <input name="assignee" style={{ width: "100%" }} />
-              </label>
-              <label style={{ flex: 1 }}>
-                Due date
-                <br />
-                <input name="dueDate" type="date" style={{ width: "100%" }} />
-              </label>
-            </div>
-            <label>
-              Description
-              <br />
-              <textarea name="description" rows={2} style={{ width: "100%" }} />
-            </label>
-            <button type="submit" style={{ alignSelf: "flex-start" }}>
-              Add task
-            </button>
-          </form>
-        </div>
 
         {tasks.length === 0 ? (
           <p>No tasks yet.</p>
@@ -287,6 +258,36 @@ export default async function BrandHubPage({
             ))}
           </div>
         )}
+
+        <div className="card" style={{ marginTop: 16, maxWidth: 640 }}>
+          <form action={boundCreateTask} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <label>
+              Title
+              <br />
+              <input name="title" required style={{ width: "100%" }} />
+            </label>
+            <div style={{ display: "flex", gap: 12 }}>
+              <label style={{ flex: 1 }}>
+                Assignee
+                <br />
+                <input name="assignee" style={{ width: "100%" }} />
+              </label>
+              <label style={{ flex: 1 }}>
+                Due date
+                <br />
+                <input name="dueDate" type="date" style={{ width: "100%" }} />
+              </label>
+            </div>
+            <label>
+              Description
+              <br />
+              <textarea name="description" rows={2} style={{ width: "100%" }} />
+            </label>
+            <button type="submit" style={{ alignSelf: "flex-start" }}>
+              Add task
+            </button>
+          </form>
+        </div>
       </section>
 
       <details style={{ marginTop: 32 }}>
