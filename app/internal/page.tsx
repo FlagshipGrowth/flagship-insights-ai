@@ -47,12 +47,15 @@ export default async function InternalPage() {
         <UserButton />
       </header>
 
-      {ctx.role === "internal_admin" && (
-        <nav className="top-nav">
-          <a href="/internal/assignments">Manage account manager assignments</a>
-          <a href="/internal/tasks">Tasks by team</a>
-        </nav>
-      )}
+      <nav className="top-nav">
+        <a href="/internal/my-tasks">My tasks</a>
+        {ctx.role === "internal_admin" && (
+          <>
+            <a href="/internal/assignments">Manage account manager assignments</a>
+            <a href="/internal/tasks">Tasks by team</a>
+          </>
+        )}
+      </nav>
 
       {ctx.role === "account_manager" && (
         <p style={{ color: "var(--muted)" }}>

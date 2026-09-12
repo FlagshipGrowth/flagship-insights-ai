@@ -11,9 +11,11 @@ import {
   type TaskSort,
   type AdminTask,
 } from "@/lib/tasks";
-import { TEAMS } from "@/lib/teams";
+import { TEAMS, resolveAssignee } from "@/lib/teams";
+import { TASK_PRIORITIES } from "@/lib/task-priority";
 import { TaskStatusSelect } from "@/components/TaskStatusSelect";
 import { TaskTeamSelect } from "@/components/TaskTeamSelect";
+import { TaskPrioritySelect } from "@/components/TaskPrioritySelect";
 import { TaskDueDateInput } from "@/components/TaskDueDateInput";
 import { parseDateOnly } from "@/lib/dates";
 
@@ -56,11 +58,34 @@ async function updateTaskTeamAdmin(formData: FormData) {
   if (team && !(TEAMS as readonly string[]).includes(team)) return;
 
   const sql = getDb();
-  const before = await sql`select team from tasks where id = ${taskId}`;
+  const before = await sql`select team, assignee from tasks where id = ${taskId}`;
   if (before.length === 0 || before[0].team === team) return;
 
-  await sql`update tasks set team = ${team}, updated_at = now() where id = ${taskId}`;
-  await logTaskActivity(taskId, ctx.email, `changed team to ${team ?? "unassigned"}`);
+  const assignee = resolveAssignee(team, before[0].assignee);
+  await sql`update tasks set team = ${team}, assignee = ${assignee}, updated_at = now() where id = ${taskId}`;
+  await logTaskActivity(
+    taskId,
+    ctx.email,
+    `changed team to ${team ?? "unassigned"}` + (assignee !== before[0].assignee ? ` (assignee set to ${assignee})` : "")
+  );
+  revalidatePath("/internal/tasks");
+}
+
+async function updateTaskPriorityAdmin(formData: FormData) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || ctx.role !== "internal_admin") return;
+
+  const taskId = formData.get("taskId") as string;
+  const priority = (formData.get("priority") as string) || null;
+  if (priority && !(TASK_PRIORITIES as readonly string[]).includes(priority)) return;
+
+  const sql = getDb();
+  const before = await sql`select priority from tasks where id = ${taskId}`;
+  if (before.length === 0 || before[0].priority === priority) return;
+
+  await sql`update tasks set priority = ${priority}, updated_at = now() where id = ${taskId}`;
+  await logTaskActivity(taskId, ctx.email, `changed priority to ${priority ?? "none"}`);
   revalidatePath("/internal/tasks");
 }
 
@@ -92,6 +117,7 @@ function TaskTable({ tasks }: { tasks: AdminTask[] }) {
             <th>Brand</th>
             <th>Task</th>
             <th>Team</th>
+            <th>Priority</th>
             <th>Status</th>
             <th>Assignee</th>
             <th>Due date</th>
@@ -114,6 +140,9 @@ function TaskTable({ tasks }: { tasks: AdminTask[] }) {
               </td>
               <td>
                 <TaskTeamSelect taskId={t.id} currentTeam={t.team} action={updateTaskTeamAdmin} />
+              </td>
+              <td>
+                <TaskPrioritySelect taskId={t.id} currentPriority={t.priority} action={updateTaskPriorityAdmin} />
               </td>
               <td>
                 <TaskStatusSelect taskId={t.id} currentStatus={t.status} action={updateTaskStatusAdmin} />

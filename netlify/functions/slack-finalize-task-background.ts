@@ -19,14 +19,19 @@ export default async (req: Request) => {
   };
 
   const sql = getDb();
-  const description = priority ? `Priority: ${priority}\n\nCreated via Slack.` : "Created via Slack.";
+  const description = "Created via Slack.";
+  // "Anything inventory related is assigned to Sherilyn" — overrides whatever was typed into the
+  // modal's Assignee field, same absolute rule enforced in lib/teams.ts's resolveAssignee() for
+  // every other task-write path in the main app (this function is bundled standalone for Netlify
+  // and can't import from there, so the rule is duplicated here).
+  const resolvedAssignee = team === "Inventory Team" ? "Sherilyn" : assignee;
   await sql`
-    insert into tasks (brand_id, title, description, assignee, team, due_date)
-    values (${brandId}, ${title}, ${description}, ${assignee}, ${team}, ${dueDate})
+    insert into tasks (brand_id, title, description, assignee, team, priority, due_date)
+    values (${brandId}, ${title}, ${description}, ${resolvedAssignee}, ${team}, ${priority}, ${dueDate})
   `;
 
   const details = [
-    assignee ? `assignee: ${assignee}` : null,
+    resolvedAssignee ? `assignee: ${resolvedAssignee}` : null,
     team ? `team: ${team}` : null,
     dueDate ? `due ${dueDate}` : null,
     priority ? `priority: ${priority}` : null,

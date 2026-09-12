@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Badge } from "@/components/Badge";
 import { TaskStatusSelect } from "@/components/TaskStatusSelect";
 import { TaskTeamSelect } from "@/components/TaskTeamSelect";
+import { TaskPrioritySelect } from "@/components/TaskPrioritySelect";
 import { TaskDueDateInput } from "@/components/TaskDueDateInput";
 import { useSavedFeedback } from "@/components/useSavedFeedback";
 import { formatDateOnly } from "@/lib/dates";
@@ -16,6 +17,7 @@ interface Task {
   status: string;
   assignee: string | null;
   team: string | null;
+  priority: string | null;
   due_date: string | null;
   created_at: string;
 }
@@ -34,6 +36,7 @@ export function TaskCard({
   isLast,
   boundUpdateStatus,
   boundUpdateTeam,
+  boundUpdatePriority,
   boundUpdateDueDate,
   boundDeleteTask,
   boundAddComment,
@@ -43,6 +46,7 @@ export function TaskCard({
   isLast?: boolean;
   boundUpdateStatus: (formData: FormData) => Promise<void>;
   boundUpdateTeam: (formData: FormData) => Promise<void>;
+  boundUpdatePriority: (formData: FormData) => Promise<void>;
   boundUpdateDueDate: (formData: FormData) => Promise<void>;
   boundDeleteTask: (formData: FormData) => void;
   boundAddComment: (formData: FormData) => Promise<void>;
@@ -106,6 +110,9 @@ export function TaskCard({
           <small style={{ color: "var(--muted)", width: 76, textAlign: "right", flexShrink: 0 }}>
             {task.due_date ? formatDateOnly(task.due_date) : "—"}
           </small>
+          <div style={{ width: 90 }}>
+            <TaskPrioritySelect taskId={task.id} currentPriority={task.priority} action={boundUpdatePriority} />
+          </div>
           <div style={{ width: 110 }}>
             <TaskStatusSelect taskId={task.id} currentStatus={task.status} action={boundUpdateStatus} />
           </div>
@@ -165,6 +172,11 @@ export function TaskCard({
                 <small style={{ color: "var(--muted)" }}>Team</small>
                 <br />
                 <TaskTeamSelect taskId={task.id} currentTeam={task.team} action={boundUpdateTeam} />
+              </div>
+              <div>
+                <small style={{ color: "var(--muted)" }}>Priority</small>
+                <br />
+                <TaskPrioritySelect taskId={task.id} currentPriority={task.priority} action={boundUpdatePriority} />
               </div>
               <div>
                 <small style={{ color: "var(--muted)" }}>Assignee</small>

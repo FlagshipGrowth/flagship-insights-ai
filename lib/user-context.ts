@@ -27,6 +27,15 @@ export function isInternalStaff(ctx: UserContext): boolean {
   return ctx.role === "account_manager" || ctx.role === "internal_admin";
 }
 
+/** Everyone's email is firstname@flagshipgrowth.com, and that's exactly what's already sitting
+ * in `tasks.assignee` from the roster (e.g. "Shahrukh", "Gabe") — so "my tasks" is just this
+ * name compared case-insensitively against `assignee`, live at query time. No signup-time link
+ * to maintain: whoever's logged in always sees whatever currently matches their own name. */
+export function deriveNameFromEmail(email: string): string {
+  const localPart = email.split("@")[0] ?? "";
+  return localPart.charAt(0).toUpperCase() + localPart.slice(1).toLowerCase();
+}
+
 /** internal_admin can access any brand; account_manager only brands under their assigned
  * clients (account_manager_assignments) — same scoping as the /internal list view. */
 export async function canStaffAccessBrand(ctx: UserContext, brandId: string): Promise<boolean> {

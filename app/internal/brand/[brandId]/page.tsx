@@ -15,7 +15,8 @@ import {
   type TaskSort,
 } from "@/lib/tasks";
 import { getBrandSlackChannelId } from "@/lib/brands";
-import { TEAMS } from "@/lib/teams";
+import { TEAMS, resolveAssignee } from "@/lib/teams";
+import { TASK_PRIORITIES, TASK_PRIORITY_LABELS } from "@/lib/task-priority";
 import { getDb } from "@/lib/db";
 import { Badge } from "@/components/Badge";
 import { MetricsChart } from "@/components/MetricsChart";
@@ -41,13 +42,15 @@ async function createTask(brandId: string, formData: FormData) {
   const assignee = (formData.get("assignee") as string)?.trim() || null;
   const dueDate = (formData.get("dueDate") as string) || null;
   const team = (formData.get("team") as string) || null;
+  const priority = (formData.get("priority") as string) || null;
   if (!title) return;
   if (team && !(TEAMS as readonly string[]).includes(team)) return;
+  if (priority && !(TASK_PRIORITIES as readonly string[]).includes(priority)) return;
 
   const sql = getDb();
   await sql`
-    insert into tasks (brand_id, title, description, assignee, team, due_date, created_by)
-    values (${brandId}, ${title}, ${description}, ${assignee}, ${team}, ${dueDate}, ${ctx.id})
+    insert into tasks (brand_id, title, description, assignee, team, priority, due_date, created_by)
+    values (${brandId}, ${title}, ${description}, ${resolveAssignee(team, assignee)}, ${team}, ${priority}, ${dueDate}, ${ctx.id})
   `;
   revalidatePath(`/internal/brand/${brandId}`);
 }
@@ -86,11 +89,35 @@ async function updateTaskTeam(brandId: string, formData: FormData) {
   if (team && !(TEAMS as readonly string[]).includes(team)) return;
 
   const sql = getDb();
-  const before = await sql`select team from tasks where id = ${taskId} and brand_id = ${brandId}`;
+  const before = await sql`select team, assignee from tasks where id = ${taskId} and brand_id = ${brandId}`;
   if (before.length === 0 || before[0].team === team) return;
 
-  await sql`update tasks set team = ${team}, updated_at = now() where id = ${taskId} and brand_id = ${brandId}`;
-  await logTaskActivity(taskId, ctx.email, `changed team to ${team ?? "unassigned"}`);
+  const assignee = resolveAssignee(team, before[0].assignee);
+  await sql`update tasks set team = ${team}, assignee = ${assignee}, updated_at = now() where id = ${taskId} and brand_id = ${brandId}`;
+  await logTaskActivity(
+    taskId,
+    ctx.email,
+    `changed team to ${team ?? "unassigned"}` + (assignee !== before[0].assignee ? ` (assignee set to ${assignee})` : "")
+  );
+  revalidatePath(`/internal/brand/${brandId}`);
+}
+
+async function updateTaskPriority(brandId: string, formData: FormData) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isInternalStaff(ctx)) return;
+  if (!(await canStaffAccessBrand(ctx, brandId))) return;
+
+  const taskId = formData.get("taskId") as string;
+  const priority = (formData.get("priority") as string) || null;
+  if (priority && !(TASK_PRIORITIES as readonly string[]).includes(priority)) return;
+
+  const sql = getDb();
+  const before = await sql`select priority from tasks where id = ${taskId} and brand_id = ${brandId}`;
+  if (before.length === 0 || before[0].priority === priority) return;
+
+  await sql`update tasks set priority = ${priority}, updated_at = now() where id = ${taskId} and brand_id = ${brandId}`;
+  await logTaskActivity(taskId, ctx.email, `changed priority to ${priority ?? "none"}`);
   revalidatePath(`/internal/brand/${brandId}`);
 }
 
@@ -212,6 +239,7 @@ export default async function BrandHubPage({
   const boundCreateTask = createTask.bind(null, brandId);
   const boundUpdateStatus = updateTaskStatus.bind(null, brandId);
   const boundUpdateTeam = updateTaskTeam.bind(null, brandId);
+  const boundUpdatePriority = updateTaskPriority.bind(null, brandId);
   const boundUpdateDueDate = updateTaskDueDate.bind(null, brandId);
   const boundDeleteTask = deleteTask.bind(null, brandId);
   const boundAddComment = addTaskComment.bind(null, brandId);
@@ -377,7 +405,7 @@ export default async function BrandHubPage({
         {activeTasks.length === 0 ? (
           <p>{teamFilter || assigneeFilter ? "No tasks match this filter." : "No open tasks."}</p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 900 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 1000 }}>
             {Array.from(tasksByCategory.entries()).map(([category, categoryTasks]) => (
               <div key={category}>
                 <h3 style={{ marginBottom: 8 }}>{category}</h3>
@@ -390,6 +418,7 @@ export default async function BrandHubPage({
                       isLast={i === arr.length - 1}
                       boundUpdateStatus={boundUpdateStatus}
                       boundUpdateTeam={boundUpdateTeam}
+                      boundUpdatePriority={boundUpdatePriority}
                       boundUpdateDueDate={boundUpdateDueDate}
                       boundDeleteTask={boundDeleteTask}
                       boundAddComment={boundAddComment}
@@ -401,7 +430,7 @@ export default async function BrandHubPage({
           </div>
         )}
 
-        <details style={{ marginTop: 24, maxWidth: 900 }}>
+        <details style={{ marginTop: 24, maxWidth: 1000 }}>
           <summary style={{ cursor: "pointer", fontWeight: 600 }}>Completed ({doneTasks.length})</summary>
           <div style={{ marginTop: 12 }}>
             {doneTasks.length === 0 ? (
@@ -418,6 +447,7 @@ export default async function BrandHubPage({
                     isLast={i === doneTasks.length - 1}
                     boundUpdateStatus={boundUpdateStatus}
                     boundUpdateTeam={boundUpdateTeam}
+                    boundUpdatePriority={boundUpdatePriority}
                     boundUpdateDueDate={boundUpdateDueDate}
                     boundDeleteTask={boundDeleteTask}
                     boundAddComment={boundAddComment}
@@ -457,6 +487,18 @@ export default async function BrandHubPage({
                 Due date
                 <br />
                 <input name="dueDate" type="date" style={{ width: "100%" }} />
+              </label>
+              <label style={{ flex: 1 }}>
+                Priority
+                <br />
+                <select name="priority" defaultValue="" style={{ width: "100%" }}>
+                  <option value="">No priority</option>
+                  {TASK_PRIORITIES.map((p) => (
+                    <option key={p} value={p}>
+                      {TASK_PRIORITY_LABELS[p]}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
             <label>

@@ -1,4 +1,5 @@
 import { getDb } from "./db";
+import { resolveAssignee } from "./teams";
 
 // Same checklist as migration 0017's one-time backfill for existing brands — kept as its own
 // copy (not generated from the migration) since a migration is a frozen, one-time statement,
@@ -70,9 +71,12 @@ export const ONBOARDING_TASKS: OnboardingTaskTemplate[] = [
 export async function seedOnboardingTasks(brandId: string): Promise<void> {
   const sql = getDb();
   for (const t of ONBOARDING_TASKS) {
+    // resolveAssignee enforces "Inventory Team tasks belong to Sherilyn" even though none of
+    // these template entries set an assignee for that team themselves.
+    const assignee = resolveAssignee(t.team, t.assignee ?? null);
     await sql`
       insert into tasks (brand_id, category, title, description, assignee, team, status)
-      values (${brandId}, ${t.category}, ${t.title}, ${t.description ?? null}, ${t.assignee ?? null}, ${t.team}, 'todo')
+      values (${brandId}, ${t.category}, ${t.title}, ${t.description ?? null}, ${assignee}, ${t.team}, 'todo')
     `;
   }
 }

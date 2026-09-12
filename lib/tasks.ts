@@ -13,6 +13,7 @@ export interface Task {
   status: string;
   assignee: string | null;
   team: string | null;
+  priority: string | null;
   due_date: string | null;
   created_at: string;
   updated_at: string;
@@ -27,6 +28,7 @@ function normalizeTask(r: any): Task {
     status: r.status,
     assignee: r.assignee,
     team: r.team,
+    priority: r.priority,
     due_date: r.due_date instanceof Date ? r.due_date.toISOString() : r.due_date,
     created_at: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
     updated_at: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at),
@@ -56,7 +58,7 @@ export async function getTasks(
     case "created_desc":
       return (
         await sql`
-          select id, title, description, category, status, assignee, team, due_date, created_at, updated_at
+          select id, title, description, category, status, assignee, team, priority, due_date, created_at, updated_at
           from tasks
           where brand_id = ${brandId}
             and (${teamParam}::text is null or (${teamParam} = ${UNASSIGNED_FILTER} and team is null) or team = ${teamParam})
@@ -67,7 +69,7 @@ export async function getTasks(
     case "created_asc":
       return (
         await sql`
-          select id, title, description, category, status, assignee, team, due_date, created_at, updated_at
+          select id, title, description, category, status, assignee, team, priority, due_date, created_at, updated_at
           from tasks
           where brand_id = ${brandId}
             and (${teamParam}::text is null or (${teamParam} = ${UNASSIGNED_FILTER} and team is null) or team = ${teamParam})
@@ -78,7 +80,7 @@ export async function getTasks(
     case "due_date":
       return (
         await sql`
-          select id, title, description, category, status, assignee, team, due_date, created_at, updated_at
+          select id, title, description, category, status, assignee, team, priority, due_date, created_at, updated_at
           from tasks
           where brand_id = ${brandId}
             and (${teamParam}::text is null or (${teamParam} = ${UNASSIGNED_FILTER} and team is null) or team = ${teamParam})
@@ -89,7 +91,7 @@ export async function getTasks(
     default:
       return (
         await sql`
-          select id, title, description, category, status, assignee, team, due_date, created_at, updated_at
+          select id, title, description, category, status, assignee, team, priority, due_date, created_at, updated_at
           from tasks
           where brand_id = ${brandId}
             and (${teamParam}::text is null or (${teamParam} = ${UNASSIGNED_FILTER} and team is null) or team = ${teamParam})
@@ -119,6 +121,7 @@ export interface AdminTask {
   status: string;
   assignee: string | null;
   team: string | null;
+  priority: string | null;
   dueDate: string | null;
   createdAt: string;
   updatedAt: string;
@@ -134,6 +137,7 @@ function normalizeAdminTask(r: any): AdminTask {
     status: r.status,
     assignee: r.assignee,
     team: r.team,
+    priority: r.priority,
     dueDate: r.due_date instanceof Date ? r.due_date.toISOString() : r.due_date,
     createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
     updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at),
@@ -175,7 +179,7 @@ export async function getAllTasksForAdmin(
       return (
         await sql`
           select t.id, t.brand_id, b.name as brand_name, t.title, t.category, t.status, t.assignee, t.team,
-                 t.due_date, t.created_at, t.updated_at
+                 t.priority, t.due_date, t.created_at, t.updated_at
           from tasks t join brands b on b.id = t.brand_id
           where (t.status != 'done' or ${includeDoneParam}) and (${teamParam}::text is null or t.team = ${teamParam})
           order by t.created_at desc
@@ -185,7 +189,7 @@ export async function getAllTasksForAdmin(
       return (
         await sql`
           select t.id, t.brand_id, b.name as brand_name, t.title, t.category, t.status, t.assignee, t.team,
-                 t.due_date, t.created_at, t.updated_at
+                 t.priority, t.due_date, t.created_at, t.updated_at
           from tasks t join brands b on b.id = t.brand_id
           where (t.status != 'done' or ${includeDoneParam}) and (${teamParam}::text is null or t.team = ${teamParam})
           order by t.created_at asc
@@ -195,7 +199,7 @@ export async function getAllTasksForAdmin(
       return (
         await sql`
           select t.id, t.brand_id, b.name as brand_name, t.title, t.category, t.status, t.assignee, t.team,
-                 t.due_date, t.created_at, t.updated_at
+                 t.priority, t.due_date, t.created_at, t.updated_at
           from tasks t join brands b on b.id = t.brand_id
           where (t.status != 'done' or ${includeDoneParam}) and (${teamParam}::text is null or t.team = ${teamParam})
           order by t.due_date nulls last, t.created_at desc
@@ -205,13 +209,35 @@ export async function getAllTasksForAdmin(
       return (
         await sql`
           select t.id, t.brand_id, b.name as brand_name, t.title, t.category, t.status, t.assignee, t.team,
-                 t.due_date, t.created_at, t.updated_at
+                 t.priority, t.due_date, t.created_at, t.updated_at
           from tasks t join brands b on b.id = t.brand_id
           where (t.status != 'done' or ${includeDoneParam}) and (${teamParam}::text is null or t.team = ${teamParam})
           order by case t.status when 'todo' then 0 when 'in_progress' then 1 else 2 end, t.due_date nulls last, t.created_at desc
         `
       ).map(normalizeAdminTask);
   }
+}
+
+/**
+ * A person's own open tasks across every brand, ranked by priority (high first, then due date,
+ * then newest) — the "My Tasks" personal dashboard. Matching is by name, live at query time
+ * (case-insensitive against `assignee`) rather than a persisted per-user link: everyone's email
+ * is `name@flagshipgrowth.com`, so whoever's logged in just needs their own name compared
+ * against whatever's already in `assignee` — no signup-time backfill step to keep in sync.
+ */
+export async function getOpenTasksForAssignee(name: string): Promise<AdminTask[]> {
+  const sql = getDb();
+  const rows = await sql`
+    select t.id, t.brand_id, b.name as brand_name, t.title, t.category, t.status, t.assignee, t.team,
+           t.priority, t.due_date, t.created_at, t.updated_at
+    from tasks t join brands b on b.id = t.brand_id
+    where lower(t.assignee) = lower(${name}) and t.status != 'done'
+    order by
+      case t.priority when 'high' then 0 when 'med' then 1 when 'low' then 2 else 3 end,
+      t.due_date nulls last,
+      t.created_at desc
+  `;
+  return rows.map(normalizeAdminTask);
 }
 
 export interface TaskComment {
