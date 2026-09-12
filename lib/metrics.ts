@@ -38,6 +38,19 @@ export async function getBrandMetrics(brandId: string, period: Period) {
   `;
 }
 
+/** Unlike getBrandMetrics (which sums the whole period into one total per metric), this keeps
+ * each day separate — what the Performance chart needs to plot a real line over time. */
+export async function getBrandMetricsTimeSeries(brandId: string, period: Period) {
+  const { from, to } = dateRangeFor(period);
+  const sql = getDb();
+  return sql`
+    select date, channel, metric_key, value
+    from metrics_daily
+    where brand_id = ${brandId} and date >= ${from} and date <= ${to}
+    order by date
+  `;
+}
+
 export async function getBrandsForClient(clientId: string) {
   const sql = getDb();
   return sql`select id, name, channels_enabled from brands where client_id = ${clientId} order by name`;

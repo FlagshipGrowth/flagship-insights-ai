@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { getUserContext, isInternalStaff } from "@/lib/user-context";
-import { getBrandsForClient, getBrandMetrics, getLatestInsight, PERIODS, type Period } from "@/lib/metrics";
+import { getBrandsForClient, getBrandMetrics, getBrandMetricsTimeSeries, getLatestInsight, PERIODS, type Period } from "@/lib/metrics";
 import { getBrandReportLinks } from "@/lib/reports";
+import { MetricsChart } from "@/components/MetricsChart";
 import { GenerateInsightButton } from "./GenerateInsightButton";
 
 export default async function DashboardPage({
@@ -29,6 +30,7 @@ export default async function DashboardPage({
   }
 
   const metrics = await getBrandMetrics(brand.id, period);
+  const metricsSeries = await getBrandMetricsTimeSeries(brand.id, period);
   const latestInsight = await getLatestInsight(brand.id);
   const { weeklyReportUrls, inventoryReportUrls } = await getBrandReportLinks(brand.id);
 
@@ -91,6 +93,7 @@ export default async function DashboardPage({
         </div>
       </section>
 
+      <h2>Performance</h2>
       {metrics.length === 0 ? (
         <p>
           No metrics yet for this period —{" "}
@@ -99,25 +102,8 @@ export default async function DashboardPage({
             : "sync hasn't produced data for this range yet."}
         </p>
       ) : (
-        <div className="card" style={{ padding: 0, maxWidth: 720, overflow: "hidden" }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Channel</th>
-                <th>Metric</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {metrics.map((m: any, i: number) => (
-                <tr key={i}>
-                  <td>{m.channel}</td>
-                  <td>{m.metric_key}</td>
-                  <td>{m.total}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="card" style={{ maxWidth: 720 }}>
+          <MetricsChart series={metricsSeries as any} />
         </div>
       )}
     </main>

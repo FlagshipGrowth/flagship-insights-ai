@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getUserContext, isInternalStaff, canStaffAccessBrand } from "@/lib/user-context";
-import { getBrandMetrics, PERIODS, type Period } from "@/lib/metrics";
+import { getBrandMetrics, getBrandMetricsTimeSeries, PERIODS, type Period } from "@/lib/metrics";
 import { getBrandName } from "@/lib/seo";
 import { getBrandReportLinks } from "@/lib/reports";
 import { getTasks, TASK_STATUSES } from "@/lib/tasks";
 import { getDb } from "@/lib/db";
 import { Badge } from "@/components/Badge";
+import { MetricsChart } from "@/components/MetricsChart";
 import { TaskStatusSelect } from "./TaskStatusSelect";
 
 async function createTask(brandId: string, formData: FormData) {
@@ -76,6 +77,7 @@ export default async function BrandHubPage({
   const period: Period = (PERIODS as string[]).includes(periodParam ?? "") ? (periodParam as Period) : "mtd";
 
   const metrics = await getBrandMetrics(brandId, period);
+  const metricsSeries = await getBrandMetricsTimeSeries(brandId, period);
   const { weeklyReportUrls, inventoryReportUrls } = await getBrandReportLinks(brandId);
   const tasks = await getTasks(brandId);
   const boundCreateTask = createTask.bind(null, brandId);
@@ -101,25 +103,8 @@ export default async function BrandHubPage({
         {metrics.length === 0 ? (
           <p>No metrics for this period yet.</p>
         ) : (
-          <div className="card" style={{ padding: 0, overflow: "hidden", maxWidth: 640 }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Channel</th>
-                  <th>Metric</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {metrics.map((m: any, i: number) => (
-                  <tr key={i}>
-                    <td>{m.channel}</td>
-                    <td>{m.metric_key}</td>
-                    <td>{m.total}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="card" style={{ maxWidth: 720 }}>
+            <MetricsChart series={metricsSeries as any} />
           </div>
         )}
       </section>
