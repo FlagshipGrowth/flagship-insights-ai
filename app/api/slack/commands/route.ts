@@ -4,15 +4,15 @@ import { getDb } from "@/lib/db";
 export const runtime = "nodejs"; // needs Node's crypto — don't switch this to "edge"
 
 /**
- * Handles the `/flag-task` Slack slash command.
+ * Handles the `/create-task` Slack slash command.
  *
  * Slack app setup:
  *  1. api.slack.com/apps -> your app -> "Slash Commands" -> Create New Command
- *  2. Command: /flag-task
+ *  2. Command: /create-task
  *  3. Request URL: https://<netlify-domain>/api/slack/commands
  *  4. Reinstall the app to the workspace to pick up the new command.
  *
- * Usage: /flag-task <title> | client:<brand name> | priority:<low|med|high>
+ * Usage: /create-task <title> | client:<brand name> | priority:<low|med|high>
  */
 export async function POST(req: Request) {
   // Must read as raw text FIRST — verification depends on the exact raw bytes.
@@ -35,14 +35,14 @@ export async function POST(req: Request) {
   const text = (params.get("text") ?? "").trim();
   const userId = params.get("user_id");
 
-  if (command !== "/flag-task") {
+  if (command !== "/create-task") {
     return Response.json({ error: "Unknown command" }, { status: 400 });
   }
 
   if (!text) {
     return Response.json({
       response_type: "ephemeral",
-      text: "Usage: `/flag-task <title> | client:<brand name> | priority:<low|med|high>`",
+      text: "Usage: `/create-task <title> | client:<brand name> | priority:<low|med|high>`",
     });
   }
 
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
   if (!fields.client) {
     return Response.json({
       response_type: "ephemeral",
-      text: "Missing `client:<brand name>` — e.g. `/flag-task Reorder stock | client:Opopop`",
+      text: "Missing `client:<brand name>` — e.g. `/create-task Reorder stock | client:Opopop`",
     });
   }
 
