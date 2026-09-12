@@ -57,8 +57,12 @@ export async function getLatestInsight(brandId: string) {
 export async function getAllBrandsWithClients() {
   const sql = getDb();
   return sql`
-    select b.id as brand_id, b.name as brand_name, c.id as client_id, c.name as client_name, b.channels_enabled
-    from brands b join clients c on c.id = b.client_id
+    select b.id as brand_id, b.name as brand_name, c.id as client_id, c.name as client_name, b.channels_enabled,
+           count(t.id) filter (where t.status <> 'done') as open_task_count
+    from brands b
+    join clients c on c.id = b.client_id
+    left join tasks t on t.brand_id = b.id
+    group by b.id, b.name, c.id, c.name, b.channels_enabled
     order by c.name, b.name
   `;
 }
@@ -68,11 +72,14 @@ export async function getAllBrandsWithClients() {
 export async function getAssignedBrandsWithClients(userId: string) {
   const sql = getDb();
   return sql`
-    select b.id as brand_id, b.name as brand_name, c.id as client_id, c.name as client_name, b.channels_enabled
+    select b.id as brand_id, b.name as brand_name, c.id as client_id, c.name as client_name, b.channels_enabled,
+           count(t.id) filter (where t.status <> 'done') as open_task_count
     from brands b
     join clients c on c.id = b.client_id
     join account_manager_assignments a on a.client_id = c.id
+    left join tasks t on t.brand_id = b.id
     where a.user_id = ${userId}
+    group by b.id, b.name, c.id, c.name, b.channels_enabled
     order by c.name, b.name
   `;
 }

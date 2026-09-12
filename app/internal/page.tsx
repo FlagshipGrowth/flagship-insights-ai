@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { getUserContext, isInternalStaff } from "@/lib/user-context";
 import { getAllBrandsWithClients, getAssignedBrandsWithClients } from "@/lib/metrics";
+import { Badge } from "@/components/Badge";
 
 export default async function InternalPage() {
   const ctx = await getUserContext();
@@ -42,20 +43,33 @@ export default async function InternalPage() {
                 <th>Client</th>
                 <th>Brand</th>
                 <th>Channels</th>
+                <th>Open tasks</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r: any) => (
-                <tr key={r.brand_id}>
-                  <td>{r.client_name}</td>
-                  <td>{r.brand_name}</td>
-                  <td>{(r.channels_enabled as string[]).join(", ") || "—"}</td>
-                  <td>
-                    <a href={`/internal/brand/${r.brand_id}`}>Open →</a>
-                  </td>
-                </tr>
-              ))}
+              {rows.map((r: any) => {
+                const openTaskCount = Number(r.open_task_count);
+                return (
+                  <tr key={r.brand_id}>
+                    <td>{r.client_name}</td>
+                    <td>{r.brand_name}</td>
+                    <td>{(r.channels_enabled as string[]).join(", ") || "—"}</td>
+                    <td>
+                      {openTaskCount > 0 ? (
+                        <Badge variant="pending">
+                          {openTaskCount} open task{openTaskCount === 1 ? "" : "s"}
+                        </Badge>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td>
+                      <a href={`/internal/brand/${r.brand_id}`}>Open →</a>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
