@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 interface Product {
   id: string;
@@ -13,152 +13,165 @@ interface Product {
 
 type View = "fba" | "fbm";
 
-function NumberField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
+interface RowInputs {
+  price: string;
+  cogs: string;
+  referralPct: string;
+  returns: string;
+  adsSpend: string;
+  fbaFee: string;
+  inbound: string;
+  storage: string;
+  fulfillmentCost: string;
+}
+
+function defaultRow(product: Product): RowInputs {
+  return {
+    price: product.msrp != null ? String(product.msrp) : "",
+    cogs: product.costLanded != null ? String(product.costLanded) : "",
+    referralPct: "15",
+    returns: "",
+    adsSpend: "",
+    fbaFee: "",
+    inbound: "",
+    storage: "",
+    fulfillmentCost: "",
+  };
+}
+
+function num(v: string): number {
+  return parseFloat(v) || 0;
+}
+
+// Narrow, borderless inputs so a row of 8+ of them still reads as a spreadsheet cell, not a form.
+function Cell({ value, onChange, width = 64 }: { value: string; onChange: (v: string) => void; width?: number }) {
   return (
-    <label>
-      {label}
-      <br />
-      <input type="number" min="0" step="0.01" value={value} onChange={(e) => onChange(e.target.value)} />
-    </label>
+    <input
+      type="number"
+      step="0.01"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      style={{ width, padding: "3px 6px", fontSize: "0.82rem" }}
+    />
   );
 }
 
 export function MarginCalculator({ products }: { products: Product[] }) {
   const [view, setView] = useState<View>("fba");
-  const [selectedId, setSelectedId] = useState("");
+  const [rows, setRows] = useState<Record<string, RowInputs>>(() =>
+    Object.fromEntries(products.map((p) => [p.id, defaultRow(p)]))
+  );
 
-  const [price, setPrice] = useState("");
-  const [cogs, setCogs] = useState("");
-  const [referralPct, setReferralPct] = useState("15");
-  const [returns, setReturns] = useState("");
-  const [adsSpend, setAdsSpend] = useState("");
-
-  // FBA-only cost lines
-  const [fbaFee, setFbaFee] = useState("");
-  const [inbound, setInbound] = useState("");
-  const [storage, setStorage] = useState("");
-
-  // FBM-only cost line
-  const [fulfillmentCost, setFulfillmentCost] = useState("");
-
-  function selectProduct(id: string) {
-    setSelectedId(id);
-    const product = products.find((p) => p.id === id);
-    if (product) {
-      setPrice(product.msrp != null ? String(product.msrp) : "");
-      setCogs(product.costLanded != null ? String(product.costLanded) : "");
-    }
+  function update(id: string, field: keyof RowInputs, value: string) {
+    setRows((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
   }
 
-  const breakdown = useMemo(() => {
-    const p = parseFloat(price) || 0;
-    const c = parseFloat(cogs) || 0;
-    const refPct = parseFloat(referralPct) || 0;
-    const ret = parseFloat(returns) || 0;
-    const ads = parseFloat(adsSpend) || 0;
-    const referralFee = p * (refPct / 100);
+  function compute(r: RowInputs) {
+    const price = num(r.price);
+    const cogs = num(r.cogs);
+    const referralFee = price * (num(r.referralPct) / 100);
+    const returns = num(r.returns);
+    const ads = num(r.adsSpend);
 
-    const lines =
+    const costs =
       view === "fba"
-        ? [
-            { label: "Sale price", value: p, sign: 1 as const },
-            { label: "COGS", value: c, sign: -1 as const },
-            { label: "FBA fee", value: parseFloat(fbaFee) || 0, sign: -1 as const },
-            { label: "Referral fee", value: referralFee, sign: -1 as const },
-            { label: "Inbound to Amazon", value: parseFloat(inbound) || 0, sign: -1 as const },
-            { label: "Storage", value: parseFloat(storage) || 0, sign: -1 as const },
-            { label: "Returns", value: ret, sign: -1 as const },
-            { label: "Ads & marketing", value: ads, sign: -1 as const },
-          ]
-        : [
-            { label: "Sale price", value: p, sign: 1 as const },
-            { label: "COGS", value: c, sign: -1 as const },
-            { label: "Referral fee", value: referralFee, sign: -1 as const },
-            { label: "Fulfillment cost", value: parseFloat(fulfillmentCost) || 0, sign: -1 as const },
-            { label: "Returns", value: ret, sign: -1 as const },
-            { label: "Ads & marketing", value: ads, sign: -1 as const },
-          ];
+        ? cogs + num(r.fbaFee) + referralFee + num(r.inbound) + num(r.storage) + returns + ads
+        : cogs + referralFee + num(r.fulfillmentCost) + returns + ads;
 
-    const profit = lines.reduce((sum, l) => sum + l.value * l.sign, 0);
-    const marginPct = p > 0 ? (profit / p) * 100 : 0;
-    return { lines, profit, marginPct };
-  }, [view, price, cogs, referralPct, returns, adsSpend, fbaFee, inbound, storage, fulfillmentCost]);
+    const profit = price - costs;
+    const marginPct = price > 0 ? (profit / price) * 100 : 0;
+    return { profit, marginPct };
+  }
 
   return (
-    <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-      <div className="card" style={{ maxWidth: 420, flex: "1 1 380px" }}>
-        <label>
-          Product (optional — fills sale price and COGS from the catalog)
-          <br />
-          <select value={selectedId} onChange={(e) => selectProduct(e.target.value)} style={{ width: "100%" }}>
-            <option value="">— Manual entry —</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {(p.sku ?? p.asin ?? "no SKU") + " — " + (p.title ?? "untitled")}
-              </option>
-            ))}
-          </select>
-        </label>
+    <>
+      <nav className="pill-nav" style={{ marginBottom: 16 }}>
+        <a onClick={() => setView("fba")} className={view === "fba" ? "active" : ""} style={{ cursor: "pointer" }}>
+          FBA
+        </a>
+        <a onClick={() => setView("fbm")} className={view === "fbm" ? "active" : ""} style={{ cursor: "pointer" }}>
+          FBM
+        </a>
+      </nav>
 
-        <nav className="pill-nav" style={{ margin: "16px 0" }}>
-          <a onClick={() => setView("fba")} className={view === "fba" ? "active" : ""} style={{ cursor: "pointer" }}>
-            FBA
-          </a>
-          <a onClick={() => setView("fbm")} className={view === "fbm" ? "active" : ""} style={{ cursor: "pointer" }}>
-            FBM
-          </a>
-        </nav>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <NumberField label="Sale price ($)" value={price} onChange={setPrice} />
-          <NumberField label="COGS per unit ($)" value={cogs} onChange={setCogs} />
-          <NumberField label="Referral fee (%)" value={referralPct} onChange={setReferralPct} />
-
-          {view === "fba" ? (
-            <>
-              <NumberField label="FBA fulfillment fee ($)" value={fbaFee} onChange={setFbaFee} />
-              <NumberField label="Inbound to Amazon ($)" value={inbound} onChange={setInbound} />
-              <NumberField label="Storage ($)" value={storage} onChange={setStorage} />
-            </>
-          ) : (
-            <NumberField label="Fulfillment cost ($)" value={fulfillmentCost} onChange={setFulfillmentCost} />
-          )}
-
-          <NumberField label="Returns ($ per unit)" value={returns} onChange={setReturns} />
-          <NumberField label="Ads & marketing spend ($ per unit)" value={adsSpend} onChange={setAdsSpend} />
-        </div>
-      </div>
-
-      <div className="card" style={{ maxWidth: 380, flex: "1 1 320px", alignSelf: "flex-start" }}>
-        <h2 style={{ marginTop: 0 }}>Breakdown ({view.toUpperCase()})</h2>
-        <table>
-          <tbody>
-            {breakdown.lines.map((l) => (
-              <tr key={l.label}>
-                <td>{l.label}</td>
-                <td style={{ textAlign: "right" }}>
-                  {l.sign < 0 ? "−" : ""}${l.value.toFixed(2)}
-                </td>
+      {products.length === 0 ? (
+        <p>No products synced yet — add some in the Catalog first.</p>
+      ) : (
+        <div className="card table-scroll" style={{ padding: 0 }}>
+          <table className="table-dense">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Title</th>
+                <th>Price</th>
+                <th>COGS</th>
+                <th>Referral %</th>
+                {view === "fba" ? (
+                  <>
+                    <th>FBA fee</th>
+                    <th>Inbound</th>
+                    <th>Storage</th>
+                  </>
+                ) : (
+                  <th>Fulfillment</th>
+                )}
+                <th>Returns</th>
+                <th>Ads</th>
+                <th>Profit $</th>
+                <th>Margin %</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        <hr style={{ margin: "16px 0", border: "none", borderTop: "1px solid var(--paper-2)" }} />
-        <p>
-          <strong>Profit per unit:</strong> ${breakdown.profit.toFixed(2)}
-        </p>
-        <p>
-          <strong>Margin:</strong> {breakdown.marginPct.toFixed(1)}%
-        </p>
-      </div>
-    </div>
+            </thead>
+            <tbody>
+              {products.map((p) => {
+                const r = rows[p.id];
+                const { profit, marginPct } = compute(r);
+                return (
+                  <tr key={p.id}>
+                    <td>{p.sku ?? "—"}</td>
+                    <td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis" }} title={p.title ?? undefined}>
+                      {p.title ?? "—"}
+                    </td>
+                    <td>
+                      <Cell value={r.price} onChange={(v) => update(p.id, "price", v)} />
+                    </td>
+                    <td>
+                      <Cell value={r.cogs} onChange={(v) => update(p.id, "cogs", v)} />
+                    </td>
+                    <td>
+                      <Cell value={r.referralPct} onChange={(v) => update(p.id, "referralPct", v)} width={52} />
+                    </td>
+                    {view === "fba" ? (
+                      <>
+                        <td>
+                          <Cell value={r.fbaFee} onChange={(v) => update(p.id, "fbaFee", v)} />
+                        </td>
+                        <td>
+                          <Cell value={r.inbound} onChange={(v) => update(p.id, "inbound", v)} />
+                        </td>
+                        <td>
+                          <Cell value={r.storage} onChange={(v) => update(p.id, "storage", v)} />
+                        </td>
+                      </>
+                    ) : (
+                      <td>
+                        <Cell value={r.fulfillmentCost} onChange={(v) => update(p.id, "fulfillmentCost", v)} />
+                      </td>
+                    )}
+                    <td>
+                      <Cell value={r.returns} onChange={(v) => update(p.id, "returns", v)} />
+                    </td>
+                    <td>
+                      <Cell value={r.adsSpend} onChange={(v) => update(p.id, "adsSpend", v)} />
+                    </td>
+                    <td style={{ fontWeight: 600, color: profit < 0 ? "#b00" : undefined }}>${profit.toFixed(2)}</td>
+                    <td style={{ fontWeight: 600, color: profit < 0 ? "#b00" : undefined }}>{marginPct.toFixed(1)}%</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   );
 }
