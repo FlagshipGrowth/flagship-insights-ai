@@ -1,5 +1,5 @@
 import { getDb } from "./lib/db";
-import { postSlackMessage } from "./lib/slack";
+import { postSlackMessageOrFallback } from "./lib/slack";
 import { parseTaskText } from "./lib/slack-task-nlu";
 
 // Slack requires a response to a slash command within 3 seconds, but the brand lookup + task
@@ -31,7 +31,7 @@ export default async (req: Request) => {
     const hint = parsed.brandName
       ? `couldn't find a brand matching "${parsed.brandName}" — check the spelling and try again`
       : `this channel isn't mapped to a brand yet — mention the brand by name, or map this channel under the brand's "Slack" section on the internal brand hub`;
-    await postSlackMessage({
+    await postSlackMessageOrFallback({
       channel: channelId,
       text: `⚠️ <@${userId}> tried to create a task but ${hint}.`,
     });
@@ -44,7 +44,7 @@ export default async (req: Request) => {
     values (${brand.id}, ${parsed.title}, ${description})
   `;
 
-  await postSlackMessage({
+  await postSlackMessageOrFallback({
     channel: channelId,
     text: `✅ Task created for *${brand.name}* by <@${userId}>: *${parsed.title}*${parsed.priority ? ` [${parsed.priority}]` : ""}`,
   });

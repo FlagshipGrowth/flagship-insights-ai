@@ -1,5 +1,5 @@
 import { getDb } from "./lib/db";
-import { postSlackMessage } from "./lib/slack";
+import { postSlackMessageOrFallback } from "./lib/slack";
 
 // Mirrors slack-create-task-background.ts: the "Create task" button on an insight alert also
 // has to ack within Slack's 3-second interactivity window, so the DB lookup + insert happens
@@ -18,7 +18,7 @@ export default async (req: Request) => {
   const brandId = insightRows[0]?.brand_id;
 
   if (!brandId) {
-    await postSlackMessage({
+    await postSlackMessageOrFallback({
       channel: channelId,
       text: `⚠️ Couldn't find the insight this alert came from — task not created.`,
       thread_ts: threadTs,
@@ -31,7 +31,7 @@ export default async (req: Request) => {
     values (${brandId}, ${title}, ${`Created from a Slack alert (insight ${insightId}).`})
   `;
 
-  await postSlackMessage({
+  await postSlackMessageOrFallback({
     channel: channelId,
     text: `✅ Task created from this alert by <@${userId}>: *${title}*`,
     thread_ts: threadTs,
