@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getUserContext, isInternalStaff, canStaffAccessBrand } from "@/lib/user-context";
 import { getBrandName } from "@/lib/seo";
 import { getProductsForBrand } from "@/lib/catalog";
+import { getMarginInputsForBrand } from "@/lib/margin";
 import { MarginCalculator } from "./MarginCalculator";
 
 export default async function MarginCalculatorPage({ params }: { params: Promise<{ brandId: string }> }) {
@@ -23,6 +24,7 @@ export default async function MarginCalculatorPage({ params }: { params: Promise
     costLanded: p.cost_landed != null ? Number(p.cost_landed) : null,
     msrp: p.msrp != null ? Number(p.msrp) : null,
   }));
+  const savedInputs = await getMarginInputsForBrand(brandId);
 
   return (
     <main>
@@ -30,7 +32,7 @@ export default async function MarginCalculatorPage({ params }: { params: Promise
         &larr; {brandName}
       </a>
       <h1 style={{ marginBottom: 24 }}>Item-level margin calculator — {brandName}</h1>
-      <MarginCalculator products={products} />
+      <MarginCalculator brandId={brandId} products={products} savedInputs={savedInputs} />
     </main>
   );
 }
