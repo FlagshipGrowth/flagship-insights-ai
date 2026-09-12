@@ -1,4 +1,5 @@
 import { verifySlackSignature, openSlackView } from "@/lib/slack";
+import { TEAMS } from "@/lib/teams";
 
 export const runtime = "nodejs"; // needs Node's crypto — don't switch this to "edge"
 
@@ -91,6 +92,18 @@ export async function POST(req: Request) {
             },
             {
               type: "input",
+              block_id: "team_block",
+              optional: true,
+              label: { type: "plain_text", text: "Department" },
+              element: {
+                type: "static_select",
+                action_id: "team_input",
+                placeholder: { type: "plain_text", text: "Select a department" },
+                options: TEAMS.map((t) => ({ text: { type: "plain_text", text: t }, value: t })),
+              },
+            },
+            {
+              type: "input",
               block_id: "due_date_block",
               optional: true,
               label: { type: "plain_text", text: "Due date" },
@@ -130,6 +143,7 @@ export async function POST(req: Request) {
     const metadata = JSON.parse(payload.view.private_metadata ?? "{}");
     const values = payload.view.state?.values ?? {};
     const assignee = values.assignee_block?.assignee_input?.value?.trim() || null;
+    const team = values.team_block?.team_input?.selected_option?.value || null;
     const dueDate = values.due_date_block?.due_date_input?.selected_date || null;
     const priority = values.priority_block?.priority_input?.selected_option?.value || null;
 
@@ -141,6 +155,7 @@ export async function POST(req: Request) {
         brandId: metadata.brandId,
         brandName: metadata.brandName,
         assignee,
+        team,
         dueDate,
         priority,
         userId: metadata.userId,
