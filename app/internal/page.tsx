@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { getUserContext, isInternalStaff } from "@/lib/user-context";
 import { getAllBrandsWithClients, getAssignedBrandsWithClients } from "@/lib/metrics";
+import { getOpenTaskCountsByTeam } from "@/lib/tasks";
+import { TEAMS } from "@/lib/teams";
 import { Badge } from "@/components/Badge";
 
 export default async function InternalPage() {
@@ -11,9 +13,35 @@ export default async function InternalPage() {
 
   const rows =
     ctx.role === "account_manager" ? await getAssignedBrandsWithClients(ctx.id) : await getAllBrandsWithClients();
+  const openCountsByTeam = ctx.role === "internal_admin" ? await getOpenTaskCountsByTeam() : null;
 
   return (
     <main>
+      {openCountsByTeam && (
+        <section style={{ marginBottom: 24 }}>
+          <h2 style={{ marginBottom: 8 }}>Tasks by team</h2>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <a href="/internal/tasks" className="card" style={{ textDecoration: "none", minWidth: 120 }}>
+              <div style={{ fontSize: "1.4rem", fontWeight: 700, color: "var(--ink)" }}>
+                {Object.values(openCountsByTeam).reduce((a, b) => a + b, 0)}
+              </div>
+              <small style={{ color: "var(--muted)" }}>All teams</small>
+            </a>
+            {TEAMS.map((t) => (
+              <a
+                key={t}
+                href={`/internal/tasks?team=${encodeURIComponent(t)}`}
+                className="card"
+                style={{ textDecoration: "none", minWidth: 120 }}
+              >
+                <div style={{ fontSize: "1.4rem", fontWeight: 700, color: "var(--ink)" }}>{openCountsByTeam[t] ?? 0}</div>
+                <small style={{ color: "var(--muted)" }}>{t}</small>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <h1>{ctx.role === "account_manager" ? "Your assigned brands" : "Choose a brand"}</h1>
         <UserButton />
