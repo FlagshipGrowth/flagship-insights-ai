@@ -51,6 +51,7 @@ export default async function InternalPage() {
         <a href="/internal/my-tasks">My tasks</a>
         {ctx.role === "internal_admin" && (
           <>
+            <a href="/internal/brands/new">Add new brand</a>
             <a href="/internal/assignments">Manage account manager assignments</a>
             <a href="/internal/tasks">Tasks by team</a>
           </>

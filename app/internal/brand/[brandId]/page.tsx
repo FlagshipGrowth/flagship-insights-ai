@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { clerkClient } from "@clerk/nextjs/server";
 import { getUserContext, isInternalStaff, canStaffAccessBrand } from "@/lib/user-context";
 import { getBrandMetrics, getBrandMetricsTimeSeries, PERIODS, type Period } from "@/lib/metrics";
 import { getBrandName } from "@/lib/seo";
@@ -14,7 +15,8 @@ import {
   TASK_SORTS,
   type TaskSort,
 } from "@/lib/tasks";
-import { getBrandSlackChannelId } from "@/lib/brands";
+import { getBrandSlackChannelId, getBrandClientInfo } from "@/lib/brands";
+import { getUsersWithBrandAccess } from "@/lib/staff";
 import { TEAMS, resolveAssignee } from "@/lib/teams";
 import { TASK_PRIORITIES, TASK_PRIORITY_LABELS } from "@/lib/task-priority";
 import { getDb } from "@/lib/db";
@@ -22,7 +24,10 @@ import { Badge } from "@/components/Badge";
 import { MetricsChart } from "@/components/MetricsChart";
 import { InventoryPreviewCard } from "@/components/InventoryPreviewCard";
 import { ReconciliationPreviewCard } from "@/components/ReconciliationPreviewCard";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { TaskCard } from "./TaskCard";
+
+const CLIENT_USER_ROLES = ["client_owner", "client_teammate"] as const;
 
 const TASK_SORT_LABELS: Record<TaskSort, string> = {
   default: "Status",
@@ -183,6 +188,88 @@ async function updateSlackChannel(brandId: string, formData: FormData) {
   revalidatePath(`/internal/brand/${brandId}`);
 }
 
+async function addBrandUser(brandId: string, formData: FormData) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || ctx.role !== "internal_admin") return;
+
+  const email = (formData.get("email") as string)?.trim().toLowerCase();
+  const role = formData.get("role") as string;
+  if (!email || !(CLIENT_USER_ROLES as readonly string[]).includes(role)) return;
+
+  const client = await getBrandClientInfo(brandId);
+  if (!client) return;
+
+  const sql = getDb();
+  // Pre-provision locally (clerk_user_id left null) so the admin sees them right away, even
+  // before the invite is accepted — the webhook's organizationMembership.created handler links
+  // this same row up by email once they actually sign in (see its "on conflict (email)" comment).
+  await sql`
+    insert into users (client_id, role, email)
+    values (${client.clientId}, ${role}, ${email})
+    on conflict (email) do update set role = excluded.role, client_id = excluded.client_id
+  `;
+
+  if (client.clerkOrgId) {
+    const clerk = await clerkClient();
+    await clerk.organizations.createOrganizationInvitation({
+      organizationId: client.clerkOrgId,
+      emailAddress: email,
+      role: role === "client_owner" ? "org:admin" : "org:member",
+    });
+  }
+  revalidatePath(`/internal/brand/${brandId}`);
+}
+
+async function deleteBrandUser(brandId: string, formData: FormData) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || ctx.role !== "internal_admin") return;
+
+  const userId = formData.get("userId") as string;
+  const client = await getBrandClientInfo(brandId);
+  if (!client) return;
+
+  const sql = getDb();
+  const rows = await sql`select id, role, clerk_user_id, client_id from users where id = ${userId}`;
+  if (rows.length === 0) return;
+  const user = rows[0];
+
+  if (user.role === "account_manager") {
+    // Only unassigns them from this client — their internal_admin/account_manager account
+    // itself is managed at /internal/assignments, not deleted from here.
+    await sql`delete from account_manager_assignments where user_id = ${userId} and client_id = ${client.clientId}`;
+  } else {
+    if (user.client_id !== client.clientId) return;
+
+    if (user.clerk_user_id && client.clerkOrgId) {
+      const clerk = await clerkClient();
+      try {
+        await clerk.organizations.deleteOrganizationMembership({
+          organizationId: client.clerkOrgId,
+          userId: user.clerk_user_id,
+        });
+      } catch {
+        // Already gone on Clerk's side — still remove the local row below either way.
+      }
+    }
+    await sql`delete from users where id = ${userId}`;
+  }
+  revalidatePath(`/internal/brand/${brandId}`);
+}
+
+async function deleteBrand(brandId: string, formData: FormData) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || ctx.role !== "internal_admin") return;
+
+  const sql = getDb();
+  // Cascades to every FK'd table (tasks, connections, metrics_daily, task_comments via tasks,
+  // etc.) via existing `on delete cascade` constraints — no manual cleanup needed here.
+  await sql`delete from brands where id = ${brandId}`;
+  redirect("/internal");
+}
+
 export default async function BrandHubPage({
   params,
   searchParams,
@@ -226,6 +313,9 @@ export default async function BrandHubPage({
     commentsByTask.get(c.taskId)!.push(c);
   }
   const slackChannelId = await getBrandSlackChannelId(brandId);
+  const isAdmin = ctx.role === "internal_admin";
+  const clientInfo = isAdmin ? await getBrandClientInfo(brandId) : null;
+  const brandUsers = clientInfo ? await getUsersWithBrandAccess(clientInfo.clientId) : [];
   const activeTasks = tasks.filter((t) => t.status !== "done");
   const doneTasks = tasks
     .filter((t) => t.status === "done")
@@ -244,6 +334,9 @@ export default async function BrandHubPage({
   const boundDeleteTask = deleteTask.bind(null, brandId);
   const boundAddComment = addTaskComment.bind(null, brandId);
   const boundUpdateSlackChannel = updateSlackChannel.bind(null, brandId);
+  const boundAddBrandUser = addBrandUser.bind(null, brandId);
+  const boundDeleteBrandUser = deleteBrandUser.bind(null, brandId);
+  const boundDeleteBrand = deleteBrand.bind(null, brandId);
 
   return (
     <main>
@@ -544,6 +637,105 @@ export default async function BrandHubPage({
           </div>
         </div>
       </details>
+
+      {isAdmin && clientInfo && (
+        <details style={{ marginTop: 24 }}>
+          <summary style={{ cursor: "pointer", fontWeight: 600 }}>Team access</summary>
+          <div style={{ marginTop: 12 }}>
+            <p>
+              <small>
+                Everyone who can see {brandName} in the client portal, plus any account managers assigned to{" "}
+                {clientInfo.clientName}.
+              </small>
+            </p>
+
+            {brandUsers.length === 0 ? (
+              <p>
+                <small style={{ color: "var(--muted)" }}>No one has portal access yet.</small>
+              </p>
+            ) : (
+              <div className="card" style={{ padding: 0, overflow: "hidden", maxWidth: 640 }}>
+                {brandUsers.map((u, i, arr) => (
+                  <div
+                    key={u.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "10px 16px",
+                      borderBottom: i < arr.length - 1 ? "1px solid var(--paper-2)" : "none",
+                    }}
+                  >
+                    <span>
+                      {u.email}{" "}
+                      <small style={{ color: "var(--muted)" }}>
+                        ({u.role.replace("_", " ")}
+                        {!u.hasClerkAccount ? ", invited — not signed in yet" : ""})
+                      </small>
+                    </span>
+                    <form action={boundDeleteBrandUser}>
+                      <input type="hidden" name="userId" value={u.id} />
+                      <ConfirmButton className="secondary" confirmText={`Remove ${u.email}'s access?`}>
+                        Remove
+                      </ConfirmButton>
+                    </form>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="card" style={{ marginTop: 16, maxWidth: 480 }}>
+              <form action={boundAddBrandUser} style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
+                <label style={{ flex: 1 }}>
+                  Email
+                  <br />
+                  <input name="email" type="email" required style={{ width: "100%" }} />
+                </label>
+                <label>
+                  Role
+                  <br />
+                  <select name="role" defaultValue="client_teammate">
+                    <option value="client_teammate">Teammate</option>
+                    <option value="client_owner">Owner</option>
+                  </select>
+                </label>
+                <button type="submit">Invite</button>
+              </form>
+              {!clientInfo.clerkOrgId && (
+                <p style={{ marginTop: 8 }}>
+                  <small style={{ color: "var(--muted)" }}>
+                    {clientInfo.clientName} hasn't signed up via Clerk yet, so no invite email can be sent — this
+                    just reserves their access for when they do.
+                  </small>
+                </p>
+              )}
+            </div>
+          </div>
+        </details>
+      )}
+
+      {isAdmin && (
+        <details style={{ marginTop: 24 }}>
+          <summary style={{ cursor: "pointer", fontWeight: 600, color: "#DC2626" }}>Danger zone</summary>
+          <div style={{ marginTop: 12 }}>
+            <p>
+              <small>
+                Permanently deletes {brandName} and everything tied to it — tasks, metrics, reports, connections.
+                This cannot be undone. Use this when a brand offboards.
+              </small>
+            </p>
+            <form action={boundDeleteBrand}>
+              <ConfirmButton
+                className="secondary"
+                style={{ borderColor: "#DC2626", color: "#DC2626" }}
+                confirmText={`Delete ${brandName} and ALL its data? This cannot be undone.`}
+              >
+                Delete this brand
+              </ConfirmButton>
+            </form>
+          </div>
+        </details>
+      )}
     </main>
   );
 }

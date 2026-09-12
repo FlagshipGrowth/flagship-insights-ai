@@ -103,11 +103,18 @@ export async function POST(req: Request) {
 
       const client = await sql`select id from clients where clerk_org_id = ${orgId}`;
       if (client.length > 0) {
+        // Conflict target is email, not clerk_user_id: the internal admin's "add user" action
+        // (app/internal/brand/[brandId]/page.tsx) pre-provisions a users row (real email,
+        // clerk_user_id null) before the person ever accepts their Clerk invite. Conflicting on
+        // clerk_user_id would miss that row entirely (its clerk_user_id is null, never equal to
+        // the new one) and attempt a second INSERT, which would then fail on the separate
+        // `users.email` unique constraint. Email is always present and unique, so it's the
+        // correct arbiter for linking a pending row to the real Clerk identity once it exists.
         await sql`
           insert into users (client_id, role, email, clerk_user_id)
           values (${client[0].id}, ${role}, ${email}, ${clerkUserId})
-          on conflict (clerk_user_id)
-          do update set role = excluded.role, client_id = excluded.client_id
+          on conflict (email)
+          do update set role = excluded.role, client_id = excluded.client_id, clerk_user_id = excluded.clerk_user_id
         `;
       }
       break;
