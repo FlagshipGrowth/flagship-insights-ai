@@ -377,16 +377,17 @@ export default async function BrandHubPage({
         {activeTasks.length === 0 ? (
           <p>{teamFilter || assigneeFilter ? "No tasks match this filter." : "No open tasks."}</p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 24, maxWidth: 640 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 900 }}>
             {Array.from(tasksByCategory.entries()).map(([category, categoryTasks]) => (
               <div key={category}>
                 <h3 style={{ marginBottom: 8 }}>{category}</h3>
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {(categoryTasks as any[]).map((t: any) => (
+                <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+                  {(categoryTasks as any[]).map((t: any, i: number, arr: any[]) => (
                     <TaskCard
                       key={t.id}
                       task={t}
                       comments={commentsByTask.get(t.id) ?? []}
+                      isLast={i === arr.length - 1}
                       boundUpdateStatus={boundUpdateStatus}
                       boundUpdateTeam={boundUpdateTeam}
                       boundUpdateDueDate={boundUpdateDueDate}
@@ -400,26 +401,29 @@ export default async function BrandHubPage({
           </div>
         )}
 
-        <details style={{ marginTop: 24, maxWidth: 640 }}>
+        <details style={{ marginTop: 24, maxWidth: 900 }}>
           <summary style={{ cursor: "pointer", fontWeight: 600 }}>Completed ({doneTasks.length})</summary>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+          <div style={{ marginTop: 12 }}>
             {doneTasks.length === 0 ? (
               <p>
                 <small style={{ color: "var(--muted)" }}>No completed tasks yet.</small>
               </p>
             ) : (
-              doneTasks.map((t: any) => (
-                <TaskCard
-                  key={t.id}
-                  task={t}
-                  comments={commentsByTask.get(t.id) ?? []}
-                  boundUpdateStatus={boundUpdateStatus}
-                  boundUpdateTeam={boundUpdateTeam}
-                  boundUpdateDueDate={boundUpdateDueDate}
-                  boundDeleteTask={boundDeleteTask}
-                  boundAddComment={boundAddComment}
-                />
-              ))
+              <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+                {doneTasks.map((t: any, i: number) => (
+                  <TaskCard
+                    key={t.id}
+                    task={t}
+                    comments={commentsByTask.get(t.id) ?? []}
+                    isLast={i === doneTasks.length - 1}
+                    boundUpdateStatus={boundUpdateStatus}
+                    boundUpdateTeam={boundUpdateTeam}
+                    boundUpdateDueDate={boundUpdateDueDate}
+                    boundDeleteTask={boundDeleteTask}
+                    boundAddComment={boundAddComment}
+                  />
+                ))}
+              </div>
             )}
           </div>
         </details>

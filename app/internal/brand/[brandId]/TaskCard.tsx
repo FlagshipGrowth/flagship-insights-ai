@@ -31,6 +31,7 @@ interface Comment {
 export function TaskCard({
   task,
   comments,
+  isLast,
   boundUpdateStatus,
   boundUpdateTeam,
   boundUpdateDueDate,
@@ -39,6 +40,7 @@ export function TaskCard({
 }: {
   task: Task;
   comments: Comment[];
+  isLast?: boolean;
   boundUpdateStatus: (formData: FormData) => Promise<void>;
   boundUpdateTeam: (formData: FormData) => Promise<void>;
   boundUpdateDueDate: (formData: FormData) => Promise<void>;
@@ -51,35 +53,52 @@ export function TaskCard({
 
   return (
     <>
-      <div className="card" style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-        <div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              onClick={() => setIsOpen(true)}
-              style={{
-                background: "none",
-                border: "none",
-                padding: 0,
-                font: "inherit",
-                color: "var(--ink)",
-                cursor: "pointer",
-                textAlign: "left",
-              }}
-            >
-              <strong style={{ textDecoration: "underline", textUnderlineOffset: 3 }}>{task.title}</strong>
-            </button>
-            <Badge variant={task.status}>{task.status.replace("_", " ")}</Badge>
-            {task.team && <Badge variant="team">{task.team}</Badge>}
-            {comments.length > 0 && <small style={{ color: "var(--muted)" }}>💬 {comments.length}</small>}
-          </div>
-          {task.description && <p style={{ margin: "4px 0" }}>{task.description}</p>}
-          <small>
-            {task.assignee ? `${task.assignee}` : "Unassigned"}
-            {task.due_date ? ` · due ${formatDateOnly(task.due_date)}` : ""}
-          </small>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          padding: "8px 14px",
+          borderBottom: isLast ? "none" : "1px solid var(--paper-2)",
+          background: "#fff",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+          <button
+            type="button"
+            onClick={() => setIsOpen(true)}
+            title={task.title}
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              font: "inherit",
+              color: "var(--ink)",
+              cursor: "pointer",
+              textAlign: "left",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              minWidth: 0,
+              flexShrink: 1,
+            }}
+          >
+            <strong style={{ textDecoration: "underline", textUnderlineOffset: 3 }}>{task.title}</strong>
+          </button>
+          <Badge variant={task.status}>{task.status.replace("_", " ")}</Badge>
+          {task.team && <Badge variant="team">{task.team}</Badge>}
+          {comments.length > 0 && (
+            <small style={{ color: "var(--muted)", flexShrink: 0 }}>💬 {comments.length}</small>
+          )}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
+          <small style={{ color: "var(--muted)", minWidth: 70, textAlign: "right" }}>
+            {task.assignee ?? "Unassigned"}
+          </small>
+          <small style={{ color: "var(--muted)", minWidth: 80, textAlign: "right" }}>
+            {task.due_date ? formatDateOnly(task.due_date) : "—"}
+          </small>
           <TaskStatusSelect taskId={task.id} currentStatus={task.status} action={boundUpdateStatus} />
           <TaskTeamSelect taskId={task.id} currentTeam={task.team} action={boundUpdateTeam} />
           <form action={boundDeleteTask}>
