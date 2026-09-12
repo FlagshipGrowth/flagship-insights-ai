@@ -29,11 +29,14 @@ Also confirm **which brand's Slack channel** this is for, and **who the account 
 
 ## Procedure
 
-### 1. Familiarize yourself with the product and brand
-Read the website product page link. Identify:
-- Unique selling propositions (USPs)
-- Brand voice and tone
-- Where this product sits in its niche/category
+### 1. Familiarize yourself with the product and brand — go beyond the one linked page
+
+The single product page link is a starting point, not the whole job. Before drafting anything:
+- Do a web/Google search on the brand name itself — how does it describe itself, what does it sell, what's it known for.
+- Read the brand's **other website pages** too, not just the linked product: About/Story page, other products in the same line, any FAQ or sizing/materials page. The goal is to actually understand the brand and this product's real construction/positioning, not to extract one page's marketing copy in isolation.
+- From all of this, identify: unique selling propositions (USPs), brand voice and tone, and — critically — **the actual style/category terms the brand itself uses for this product** (e.g. "fitted," "structured," "snapback," "dad hat," "trucker" are all different, non-interchangeable cap styles; get this from the brand's own words, not from a competitor's listing).
+
+**Cross-check this against whatever Data Dive's `generate_listing_copy` (step 4) comes back with.** Its draft is built from the *niche's* competitors, some of whom may sell a different sub-style than this exact product — it will confidently reuse whatever category language is common in that niche even if it doesn't match this specific product. Concretely: if the brand's own material describes the product as "structured"/"fitted" and Data Dive's draft calls it a "dad hat" (a distinctly *unstructured*, curved-brim style), that's a real inaccuracy to catch and fix here, not a stylistic nitpick — don't let a generated draft's category framing override what the brand's own pages actually say the product is.
 
 ### 2. Get or create the niche
 - Search first: `list_niches` with `searchAsin` (competitor/own ASIN, if known) or `searchText` (product's core keyword).
@@ -105,13 +108,16 @@ Each bullet:
 - Never include: fabric content, care instructions, or country of origin (these belong in their own listing fields, not bullets)
 - Never include: subjective/comparative claims ("best," "strongest") unless verifiable on packaging; competitor comparisons; cross-sell references to other ASINs; unsubstantiated awards/survey claims
 
-#### D. Backend Search Terms — one flat string, byte limit **249 bytes** (confirmed 2026-09-12 — Amazon has changed this before, so re-confirm in Seller Central if this instruction is old)
+#### D. Backend Search Terms — one flat string, byte limit **249 bytes** (confirmed 2026-09-12 — Amazon has changed this before, so re-confirm in Seller Central if this instruction is old). **Target range: 235–249 bytes.** Landing under 235 means the candidate pool wasn't mined hard enough — go back and widen it (see step 3 below) before accepting a shorter result.
 
-**Fill toward the limit — don't stop at a handful of "obviously good" words.** A short, safe-looking list under half the budget is a miss, not a virtue: every unused byte is a search term you left on the table. Work the full pipeline before finalizing:
-1. Pull every candidate word from `get_niche_keywords` (individual words from real multi-word keyword phrases) and `get_niche_roots` (already-extracted word roots, ranked by `broadSearchVolume`) for the niche — not just the handful that jump out.
-2. Filter the candidate list: drop anything already used in Title/Highlights/Bullets, stopwords, words that misrepresent the actual product (an attribute the product doesn't really have — e.g. don't add "adjustable" or "snapback" for a fitted-only cap just because they're high-volume; accuracy beats byte-filling), invented misspellings, and duplicate singular/plural forms (keep the one with the real confirmed search volume).
-3. Rank what's left by search volume/relevancy and keep adding words, recomputing the running UTF-8 byte length (with a single space between each) after every addition, **until the next candidate word would push the total over 249 bytes** — then stop. Don't pad with low-value filler just to hit the number, but do exhaust genuinely relevant candidates before settling for a short list.
-4. State the final byte count explicitly when you hand this off (e.g. "231/249 bytes") so the account manager can see how much of the budget was actually used.
+**The most obvious words are the ones you must *not* include, and it's easy to get this backwards.** The brand name and the bare category noun (e.g. "hat," "cap") are exactly the terms it's tempting to add because they feel like the most important, most "obvious" ones for this product — but they're already sitting in the Title, already indexed there, and Amazon's own guidance is explicit that backend terms exist to catch words *not* already used elsewhere. Repeating them here doesn't add reach, it just burns byte budget that a genuinely new term could have used. Before doing anything else, write down every word already in your finalized Title A, Title B, Highlights, and Bullets — that whole set (brand name included) is off-limits for this field, full stop.
+
+**Fill toward the 235–249 target — don't stop at a handful of "obviously good" words.** Work the full pipeline before finalizing:
+1. Build a wide candidate pool: pull individual words out of `get_niche_keywords`'s actual keyword phrases (not just `get_niche_roots`'s pre-extracted single-word roots — mine the raw keyword list too, since real candidate words hide inside multi-word phrases that root extraction can miss or under-rank) and combine with `get_niche_roots`, ranked by search volume/relevancy.
+2. Filter: drop the off-limits set from directly above, stopwords, words that misrepresent the actual product (an attribute or style it doesn't really have — e.g. don't add "adjustable" or "snapback" for a fitted-only cap, or a color the specific SKU/variant isn't, just because they're high-volume; accuracy beats byte-filling), invented misspellings, and duplicate singular/plural forms (keep only the one with the real confirmed higher search volume).
+3. **Prioritize English-language terms.** Rank the filtered English candidates by search volume and fill toward 235–249 bytes from that list first. Only bring in other-language terms (real, verified alternate-language search terms — see the rule below) if genuine English candidates run out before you reach 235 bytes; don't let non-English terms crowd out an English one with real search volume just because it happened to rank higher in the raw data.
+4. Keep adding, recomputing the running UTF-8 byte length (single space between each word) after every addition, until the next candidate would push the total over 249 — then stop. If you hit 235–249, good. If you can't get past ~150–200 using only genuinely accurate, non-redundant candidates, say so explicitly and explain what's missing from the research (a thin niche dive, a very narrow product) rather than padding with low-confidence filler to hit the number.
+5. State the final byte count explicitly when you hand this off (e.g. "241/249 bytes") so the account manager can see how much of the budget was actually used.
 
 Other rules, unchanged:
 - All lowercase, space-separated, no punctuation (no commas/semicolons/dashes)
@@ -156,7 +162,9 @@ Go through every check below against your own draft. If anything fails, fix it a
 - No near-duplicate content between bullets, or with Title/Highlights
 
 **Backend Search Terms specifically:**
-- Byte length (UTF-8), not character length — must be as close to the 249-byte cap as genuinely relevant candidates allow, not just "under the limit"
+- Byte length (UTF-8), not character length — target 235–249 bytes; if it's meaningfully under that, the candidate pool wasn't mined widely enough (see step 6D)
+- Brand name and the bare category noun (e.g. "hat"/"cap") are not present — they're already in the Title, and including them here is the single most common mistake to avoid
+- English-language terms are prioritized; other-language terms only appear because genuine English candidates ran out first
 - All lowercase, no punctuation
 - No word repeated; no word already used in Title/Highlights/Bullets
 - No stopwords ("a," "an," "and," "by," "for," "of," "the," "with")
