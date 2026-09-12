@@ -3,11 +3,13 @@ import { revalidatePath } from "next/cache";
 import { getUserContext, isInternalStaff, canStaffAccessBrand } from "@/lib/user-context";
 import { getBrandMetrics, getBrandMetricsTimeSeries, PERIODS, type Period } from "@/lib/metrics";
 import { getBrandName } from "@/lib/seo";
-import { getBrandReportLinks } from "@/lib/reports";
+import { getBrandReportLinks, getInventoryPreview, getReconciliationSummary } from "@/lib/reports";
 import { getTasks, TASK_STATUSES } from "@/lib/tasks";
 import { getDb } from "@/lib/db";
 import { Badge } from "@/components/Badge";
 import { MetricsChart } from "@/components/MetricsChart";
+import { InventoryPreviewCard } from "@/components/InventoryPreviewCard";
+import { ReconciliationPreviewCard } from "@/components/ReconciliationPreviewCard";
 import { TaskStatusSelect } from "./TaskStatusSelect";
 
 async function createTask(brandId: string, formData: FormData) {
@@ -78,7 +80,9 @@ export default async function BrandHubPage({
 
   const metrics = await getBrandMetrics(brandId, period);
   const metricsSeries = await getBrandMetricsTimeSeries(brandId, period);
-  const { weeklyReportUrls, inventoryReportUrls } = await getBrandReportLinks(brandId);
+  const { weeklyReportUrls, inventoryReportUrls, reconciliationReportUrls } = await getBrandReportLinks(brandId);
+  const inventoryPreview = await getInventoryPreview(brandId);
+  const reconciliationSummary = await getReconciliationSummary(brandId);
   const tasks = await getTasks(brandId);
   const boundCreateTask = createTask.bind(null, brandId);
   const boundUpdateStatus = updateTaskStatus.bind(null, brandId);
@@ -109,7 +113,7 @@ export default async function BrandHubPage({
         )}
       </section>
 
-      {(weeklyReportUrls.length > 0 || inventoryReportUrls.length > 0) && (
+      {(weeklyReportUrls.length > 0 || inventoryReportUrls.length > 0 || reconciliationReportUrls.length > 0) && (
         <section style={{ marginBottom: 32 }}>
           <h2>Reports</h2>
           <p>
@@ -123,6 +127,10 @@ export default async function BrandHubPage({
               })),
               ...inventoryReportUrls.map((r) => ({
                 label: `Inventory Report${r.label ? ` (${r.label})` : ""}`,
+                url: r.url,
+              })),
+              ...reconciliationReportUrls.map((r) => ({
+                label: `Reconciliation Report${r.label ? ` (${r.label})` : ""}`,
                 url: r.url,
               })),
             ].map((report, i, arr) => (
@@ -144,6 +152,14 @@ export default async function BrandHubPage({
             ))}
           </div>
         </section>
+      )}
+
+      {inventoryPreview && (
+        <InventoryPreviewCard preview={inventoryPreview} reportUrl={inventoryReportUrls[0]?.url} />
+      )}
+
+      {reconciliationSummary && (
+        <ReconciliationPreviewCard summary={reconciliationSummary} reportUrl={reconciliationReportUrls[0]?.url} />
       )}
 
       <section style={{ marginBottom: 32 }}>

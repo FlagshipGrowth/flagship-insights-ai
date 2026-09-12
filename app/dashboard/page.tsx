@@ -2,8 +2,10 @@ import { redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { getUserContext, isInternalStaff } from "@/lib/user-context";
 import { getBrandsForClient, getBrandMetrics, getBrandMetricsTimeSeries, getLatestInsight, PERIODS, type Period } from "@/lib/metrics";
-import { getBrandReportLinks } from "@/lib/reports";
+import { getBrandReportLinks, getInventoryPreview, getReconciliationSummary } from "@/lib/reports";
 import { MetricsChart } from "@/components/MetricsChart";
+import { InventoryPreviewCard } from "@/components/InventoryPreviewCard";
+import { ReconciliationPreviewCard } from "@/components/ReconciliationPreviewCard";
 import { GenerateInsightButton } from "./GenerateInsightButton";
 
 export default async function DashboardPage({
@@ -32,7 +34,9 @@ export default async function DashboardPage({
   const metrics = await getBrandMetrics(brand.id, period);
   const metricsSeries = await getBrandMetricsTimeSeries(brand.id, period);
   const latestInsight = await getLatestInsight(brand.id);
-  const { weeklyReportUrls, inventoryReportUrls } = await getBrandReportLinks(brand.id);
+  const { weeklyReportUrls, inventoryReportUrls, reconciliationReportUrls } = await getBrandReportLinks(brand.id);
+  const inventoryPreview = await getInventoryPreview(brand.id);
+  const reconciliationSummary = await getReconciliationSummary(brand.id);
 
   return (
     <main>
@@ -57,7 +61,7 @@ export default async function DashboardPage({
         ))}
       </nav>
 
-      {(weeklyReportUrls.length > 0 || inventoryReportUrls.length > 0) && (
+      {(weeklyReportUrls.length > 0 || inventoryReportUrls.length > 0 || reconciliationReportUrls.length > 0) && (
         <section className="card" style={{ marginBottom: 24, maxWidth: 720 }}>
           <h2>Reports</h2>
           <p>
@@ -74,8 +78,21 @@ export default async function DashboardPage({
                 Inventory Report{r.label ? ` (${r.label})` : ""} →
               </a>
             ))}
+            {reconciliationReportUrls.map((r) => (
+              <a key={r.url} href={r.url} target="_blank" rel="noopener noreferrer">
+                Reconciliation Report{r.label ? ` (${r.label})` : ""} →
+              </a>
+            ))}
           </div>
         </section>
+      )}
+
+      {inventoryPreview && (
+        <InventoryPreviewCard preview={inventoryPreview} reportUrl={inventoryReportUrls[0]?.url} />
+      )}
+
+      {reconciliationSummary && (
+        <ReconciliationPreviewCard summary={reconciliationSummary} reportUrl={reconciliationReportUrls[0]?.url} />
       )}
 
       <section className="card" style={{ marginBottom: 24, maxWidth: 720 }}>
