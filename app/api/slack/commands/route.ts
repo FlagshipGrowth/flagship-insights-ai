@@ -11,7 +11,10 @@ export const runtime = "nodejs"; // needs Node's crypto — don't switch this to
  *  3. Request URL: https://<netlify-domain>/api/slack/commands
  *  4. Reinstall the app to the workspace to pick up the new command.
  *
- * Usage: /create-task <title> | client:<brand name> | priority:<low|med|high>
+ * Usage: /create-task <title> | priority:<low|med|high>
+ *   Run inside a brand's own Slack channel (mapped via the internal brand hub's "Slack"
+ *   section) and the brand is resolved from the channel — no client: needed. From any other
+ *   channel, add `client:<brand name>` to say which brand explicitly.
  *
  * Slack requires a response within 3 seconds. This route only verifies the signature and
  * parses the text — both fast, no DB — then hands the actual brand lookup + task insert off to
@@ -48,7 +51,7 @@ export async function POST(req: Request) {
   if (!text) {
     return Response.json({
       response_type: "ephemeral",
-      text: "Usage: `/create-task <title> | client:<brand name> | priority:<low|med|high>`",
+      text: "Usage: `/create-task <title> | priority:<low|med|high>` (run in a brand's Slack channel), or add `| client:<brand name>` from elsewhere.",
     });
   }
 
@@ -59,15 +62,10 @@ export async function POST(req: Request) {
     if (key && value) fields[key.toLowerCase()] = value;
   }
 
-  if (!fields.client) {
-    return Response.json({
-      response_type: "ephemeral",
-      text: "Missing `client:<brand name>` — e.g. `/create-task Reorder stock | client:Opopop`",
-    });
-  }
-
   // Fire the background function and wait only for Netlify to accept the invocation (near-
   // instant — background functions return 202 immediately, before their own work finishes).
+  // Brand resolution (client: name, else this channel's mapped brand) happens over there too,
+  // since it needs the DB.
   await fetch(new URL("/.netlify/functions/slack-create-task-background", req.url), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -82,6 +80,6 @@ export async function POST(req: Request) {
 
   return Response.json({
     response_type: "ephemeral",
-    text: `⏳ Creating task for "${fields.client}"…`,
+    text: `⏳ Creating task: "${title}"…`,
   });
 }

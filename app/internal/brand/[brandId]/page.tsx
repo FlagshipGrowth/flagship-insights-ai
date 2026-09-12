@@ -5,6 +5,7 @@ import { getBrandMetrics, getBrandMetricsTimeSeries, PERIODS, type Period } from
 import { getBrandName } from "@/lib/seo";
 import { getBrandReportLinks, getInventoryPreview, getReconciliationSummary } from "@/lib/reports";
 import { getTasks, TASK_STATUSES } from "@/lib/tasks";
+import { getBrandSlackChannelId } from "@/lib/brands";
 import { getDb } from "@/lib/db";
 import { Badge } from "@/components/Badge";
 import { MetricsChart } from "@/components/MetricsChart";
@@ -59,6 +60,18 @@ async function deleteTask(brandId: string, formData: FormData) {
   revalidatePath(`/internal/brand/${brandId}`);
 }
 
+async function updateSlackChannel(brandId: string, formData: FormData) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isInternalStaff(ctx)) return;
+  if (!(await canStaffAccessBrand(ctx, brandId))) return;
+
+  const channelId = (formData.get("slackChannelId") as string)?.trim() || null;
+  const sql = getDb();
+  await sql`update brands set slack_channel_id = ${channelId} where id = ${brandId}`;
+  revalidatePath(`/internal/brand/${brandId}`);
+}
+
 export default async function BrandHubPage({
   params,
   searchParams,
@@ -84,9 +97,11 @@ export default async function BrandHubPage({
   const inventoryPreview = await getInventoryPreview(brandId);
   const reconciliationSummary = await getReconciliationSummary(brandId);
   const tasks = await getTasks(brandId);
+  const slackChannelId = await getBrandSlackChannelId(brandId);
   const boundCreateTask = createTask.bind(null, brandId);
   const boundUpdateStatus = updateTaskStatus.bind(null, brandId);
   const boundDeleteTask = deleteTask.bind(null, brandId);
+  const boundUpdateSlackChannel = updateSlackChannel.bind(null, brandId);
 
   return (
     <main>
@@ -161,6 +176,39 @@ export default async function BrandHubPage({
       {reconciliationSummary && (
         <ReconciliationPreviewCard summary={reconciliationSummary} reportUrl={reconciliationReportUrls[0]?.url} />
       )}
+
+      <section style={{ marginBottom: 32 }}>
+        <h2>Slack</h2>
+        <p>
+          <small>
+            Map this brand to its internal Slack channel so <code>/create-task</code> run in that channel creates the
+            task here automatically, with no <code>client:</code> needed.
+          </small>
+        </p>
+        <div className="card" style={{ maxWidth: 480 }}>
+          <form
+            action={boundUpdateSlackChannel}
+            style={{ display: "flex", gap: 12, alignItems: "flex-end" }}
+          >
+            <label style={{ flex: 1 }}>
+              Slack channel ID
+              <br />
+              <input
+                name="slackChannelId"
+                defaultValue={slackChannelId ?? ""}
+                placeholder="C0123ABC456"
+                style={{ width: "100%" }}
+              />
+            </label>
+            <button type="submit">Save</button>
+          </form>
+          <p style={{ marginTop: 8 }}>
+            <small>
+              Find it in Slack: open the channel → channel name → "About" tab → scroll to the bottom.
+            </small>
+          </p>
+        </div>
+      </section>
 
       <section style={{ marginBottom: 32 }}>
         <h2>Tools</h2>
