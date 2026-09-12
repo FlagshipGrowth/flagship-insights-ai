@@ -15,7 +15,11 @@ Before starting, confirm you have all three. If any are missing, ask for them in
 - **SKU** (and ASIN, if the product is already live on Amazon)
 - **Link to the brand's website product page** (for brand voice, USPs, and any detail not yet on Amazon)
 
-Also confirm **which brand's Slack channel** this is for, and **who the account manager is** — if you don't already know, ask, or check the brand's page in the internal portal (`/internal/brand/[brandId]`) for the assigned account manager and Slack channel ID.
+Also confirm **which brand's Slack channel** this is for, and **who the account manager is**.
+
+**Normal trigger for this skill is a `/seo-listing` request from Flagship AI, not a human typing to you directly.** Flagship AI's Slack app posts one message per request, in the brand's own channel, @-mentioning you — and that message already carries everything above: product name, SKU (or "not assigned yet"), website URL, priority, the account manager's name, and a task ID (e.g. "task 4f2a..."). Read it from there rather than asking again. You have no access to this app's internal portal or database, so you can't look anything up yourself if it's missing — if the message is genuinely incomplete, ask in the same thread rather than guessing or trying to browse `/internal/brand/[brandId]` (you can't sign into it). Reply **in that same thread** when you're done (see Section 8) — Flagship AI is watching for your reply there and logs it onto the tracked task automatically; posting anywhere else means the request never shows as handled.
+
+If instead someone genuinely does ask you directly (not via a `/seo-listing` message), gather all of the above from them first, the same way — you just won't have a task ID or Flagship AI watching for the reply in that case.
 
 ## Tools
 
@@ -178,7 +182,7 @@ If you're not fully certain whether a candidate word or phrase is compliant, lea
 
 ## 8. Hand off for review
 
-Post to the brand's Slack channel (from the channel/brand context, or ask if unknown). Always include, every time:
+**Reply in the same thread the request came in on** (the message that @-mentioned you) — don't start a new top-level message, Flagship AI matches your reply back to the tracked task by thread, not by channel. Always include, every time:
 
 - **Both Title A and Title B**, each labeled and each with its character count (e.g. "64/75 chars"), so the account manager can pick or run both as an A/B test
 - Item Highlights, with its character count
@@ -186,7 +190,8 @@ Post to the brand's Slack channel (from the channel/brand context, or ask if unk
 - The Backend Search Terms string, with its **byte count out of 249** (e.g. "231/249 bytes")
 - **The Ranking Juice score** from `generate_listing_copy`'s `result.rankingJuice` (or from `get_ranking_juice` if working from a manual draft) — report the number itself, and where useful, how it compares to the niche's strongest competitor from `get_niche_competitors`/`get_ranking_juice` so the account manager has a sense of scale, not just a bare figure
 - The product name, SKU, and ASIN (if any) this is for
+- The task ID, so this is traceable back to the request
 - A one-line note on what changed / why these keywords, if useful context
-- **Tag the brand's assigned account manager by name**, and ask them to review before it goes to the client — this is a draft for their approval, not a finished submission. Do not contact the client directly.
+- **Reference the account manager by name** (given in the original request message — or a real `@mention` instead, if you can resolve their Slack user from that name), and ask them to review before it goes to the client — this is a draft for their approval, not a finished submission. Do not contact the client directly.
 
 Do not mark this "done" — the account manager still needs to review and approve before anything reaches the brand.

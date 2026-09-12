@@ -165,5 +165,31 @@ export async function POST(req: Request) {
     return Response.json({ response_action: "clear" });
   }
 
+  if (payload.type === "view_submission" && payload.view?.callback_id === "seo_listing_modal") {
+    const metadata = JSON.parse(payload.view.private_metadata ?? "{}");
+    const values = payload.view.state?.values ?? {};
+    const productName = values.product_name_block?.product_name_input?.value?.trim();
+    const sku = values.sku_block?.sku_input?.value?.trim() || null;
+    const productUrl = values.product_url_block?.product_url_input?.value?.trim();
+    const priority = values.priority_block?.priority_input?.selected_option?.value || null;
+
+    await fetch(new URL("/.netlify/functions/seo-listing-finalize-background", req.url), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        brandId: metadata.brandId,
+        brandName: metadata.brandName,
+        productName,
+        sku,
+        productUrl,
+        priority,
+        userId: metadata.userId,
+        channelId: metadata.channelId,
+      }),
+    });
+
+    return Response.json({ response_action: "clear" });
+  }
+
   return Response.json({ ok: true });
 }

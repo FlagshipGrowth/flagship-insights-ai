@@ -1,28 +1,36 @@
-import { verifySlackSignature } from "@/lib/slack";
+import { verifySlackSignature, openSlackView } from "@/lib/slack";
+import { getBrandBySlackChannelId } from "@/lib/brands";
 
 export const runtime = "nodejs"; // needs Node's crypto — don't switch this to "edge"
 
+const PRIORITY_OPTIONS = [
+  { text: "Low", value: "low" },
+  { text: "Medium", value: "med" },
+  { text: "High", value: "high" },
+];
+
 /**
- * Handles the `/create-task` Slack slash command.
+ * Handles Slack slash commands: `/create-task` and `/seo-listing`, both pointed at this same
+ * Request URL (branching on the `command` field) rather than needing a separate URL per command.
  *
- * Slack app setup:
+ * Slack app setup for a new command:
  *  1. api.slack.com/apps -> your app -> "Slash Commands" -> Create New Command
- *  2. Command: /create-task
- *  3. Request URL: https://<netlify-domain>/api/slack/commands
- *  4. Reinstall the app to the workspace to pick up the new command.
+ *  2. Request URL: https://<netlify-domain>/api/slack/commands (same one for every command)
+ *  3. Reinstall the app to the workspace to pick up the new command.
  *
- * Usage: /create-task <conversational request>
+ * `/create-task <conversational request>`
  *   e.g. "/create-task opopop needs their brand story rewritten, this is urgent" — Claude picks
  *   out the title, brand, and priority. Run inside a brand's own Slack channel (mapped via the
  *   internal brand hub's "Slack" section) and you don't even need to name the brand.
  *   Power-user shortcut: `/create-task <title> | client:<brand name> | priority:<low|med|high>`
  *   is still parsed deterministically (no LLM call) if you'd rather be explicit.
  *
- * Slack requires a response within 3 seconds. This route only verifies the signature — no DB,
- * no LLM call — then hands the raw text off to slack-create-task-background.ts (a Netlify
- * background function) and acks immediately. That function does the actual parsing (including
- * the Claude call for conversational text), brand resolution, and DB insert, then posts the real
- * confirmation (or error) to the channel a moment later.
+ * `/seo-listing` — opens a modal (Product name / SKU / website URL / priority) for the Amazon
+ *   SEO listing agent. Must be run in a brand's mapped Slack channel (no client: escape hatch —
+ *   unlike /create-task this needs a real brandId before the modal can even open). Submitting it
+ *   creates a tracked task (see seo-listing-finalize-background.ts) and @-mentions Claude Tag
+ *   with everything it needs to run the amazon-seo-listing skill and reply in that same thread —
+ *   nobody has to talk to Claude Tag directly, Flagship AI does that part.
  */
 export async function POST(req: Request) {
   // Must read as raw text FIRST — verification depends on the exact raw bytes.
@@ -45,6 +53,77 @@ export async function POST(req: Request) {
   const text = (params.get("text") ?? "").trim();
   const userId = params.get("user_id");
   const channelId = params.get("channel_id");
+  const triggerId = params.get("trigger_id") ?? "";
+
+  if (command === "/seo-listing") {
+    if (!channelId) {
+      return Response.json({ response_type: "ephemeral", text: "Couldn't read this channel." });
+    }
+    // A quick, single indexed lookup — not the "no DB" background-function dance /create-task
+    // uses, since that's about avoiding slow/uncertain work (an LLM call, brand-name matching)
+    // within Slack's 3s budget, not DB access itself. views.open also needs trigger_id used
+    // immediately, so this whole command has to stay inline anyway.
+    const brand = await getBrandBySlackChannelId(channelId);
+    if (!brand) {
+      return Response.json({
+        response_type: "ephemeral",
+        text: "This channel isn't mapped to a brand yet — set it on that brand's internal page under \"Slack\" first, then try again here.",
+      });
+    }
+
+    await openSlackView({
+      trigger_id: triggerId,
+      view: {
+        type: "modal",
+        callback_id: "seo_listing_modal",
+        private_metadata: JSON.stringify({ brandId: brand.id, brandName: brand.name, userId, channelId }),
+        title: { type: "plain_text", text: "SEO listing request" },
+        submit: { type: "plain_text", text: "Request" },
+        close: { type: "plain_text", text: "Cancel" },
+        blocks: [
+          { type: "section", text: { type: "mrkdwn", text: `For *${brand.name}*` } },
+          {
+            type: "input",
+            block_id: "product_name_block",
+            label: { type: "plain_text", text: "Product name" },
+            element: { type: "plain_text_input", action_id: "product_name_input" },
+          },
+          {
+            type: "input",
+            block_id: "sku_block",
+            optional: true,
+            label: { type: "plain_text", text: "SKU" },
+            element: {
+              type: "plain_text_input",
+              action_id: "sku_input",
+              placeholder: { type: "plain_text", text: "Leave blank if not assigned yet" },
+            },
+          },
+          {
+            type: "input",
+            block_id: "product_url_block",
+            label: { type: "plain_text", text: "Website product page URL" },
+            element: { type: "plain_text_input", action_id: "product_url_input" },
+          },
+          {
+            type: "input",
+            block_id: "priority_block",
+            label: { type: "plain_text", text: "Priority" },
+            element: {
+              type: "static_select",
+              action_id: "priority_input",
+              options: PRIORITY_OPTIONS.map((p) => ({
+                text: { type: "plain_text", text: p.text },
+                value: p.value,
+              })),
+            },
+          },
+        ],
+      },
+    });
+
+    return Response.json({});
+  }
 
   if (command !== "/create-task") {
     return Response.json({ error: "Unknown command" }, { status: 400 });
