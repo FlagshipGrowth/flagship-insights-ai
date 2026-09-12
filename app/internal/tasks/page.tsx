@@ -14,6 +14,7 @@ import { TEAMS } from "@/lib/teams";
 import { TaskStatusSelect } from "@/components/TaskStatusSelect";
 import { TaskTeamSelect } from "@/components/TaskTeamSelect";
 import { TaskDueDateInput } from "@/components/TaskDueDateInput";
+import { parseDateOnly } from "@/lib/dates";
 
 const TASK_SORT_LABELS: Record<TaskSort, string> = {
   default: "Status",
@@ -200,7 +201,7 @@ export default async function AdminTasksPage({
                       <span
                         style={{
                           color:
-                            t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "done"
+                            t.dueDate && parseDateOnly(t.dueDate) < new Date() && t.status !== "done"
                               ? "#DC2626"
                               : undefined,
                         }}

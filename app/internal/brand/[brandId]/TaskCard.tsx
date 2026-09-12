@@ -5,6 +5,7 @@ import { Badge } from "@/components/Badge";
 import { TaskStatusSelect } from "@/components/TaskStatusSelect";
 import { TaskTeamSelect } from "@/components/TaskTeamSelect";
 import { TaskDueDateInput } from "@/components/TaskDueDateInput";
+import { formatDateOnly } from "@/lib/dates";
 
 interface Task {
   id: string;
@@ -72,7 +73,7 @@ export function TaskCard({
           {task.description && <p style={{ margin: "4px 0" }}>{task.description}</p>}
           <small>
             {task.assignee ? `${task.assignee}` : "Unassigned"}
-            {task.due_date ? ` · due ${new Date(task.due_date).toLocaleDateString()}` : ""}
+            {task.due_date ? ` · due ${formatDateOnly(task.due_date)}` : ""}
           </small>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
