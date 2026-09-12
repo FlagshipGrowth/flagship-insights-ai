@@ -22,6 +22,7 @@ export default async function InternalPage() {
       {ctx.role === "internal_admin" && (
         <nav className="top-nav">
           <a href="/internal/assignments">Manage account manager assignments</a>
+          <a href="/internal/tasks">Tasks by team</a>
         </nav>
       )}
 

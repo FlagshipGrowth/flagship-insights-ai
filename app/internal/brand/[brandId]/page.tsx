@@ -6,6 +6,7 @@ import { getBrandName } from "@/lib/seo";
 import { getBrandReportLinks, getInventoryPreview, getReconciliationSummary } from "@/lib/reports";
 import { getTasks, getTaskCommentsForBrand, TASK_STATUSES, TASK_SORTS, type TaskSort } from "@/lib/tasks";
 import { getBrandSlackChannelId } from "@/lib/brands";
+import { TEAMS } from "@/lib/teams";
 import { getDb } from "@/lib/db";
 import { Badge } from "@/components/Badge";
 import { MetricsChart } from "@/components/MetricsChart";
@@ -30,12 +31,14 @@ async function createTask(brandId: string, formData: FormData) {
   const description = (formData.get("description") as string)?.trim() || null;
   const assignee = (formData.get("assignee") as string)?.trim() || null;
   const dueDate = (formData.get("dueDate") as string) || null;
+  const team = (formData.get("team") as string) || null;
   if (!title) return;
+  if (team && !(TEAMS as readonly string[]).includes(team)) return;
 
   const sql = getDb();
   await sql`
-    insert into tasks (brand_id, title, description, assignee, due_date, created_by)
-    values (${brandId}, ${title}, ${description}, ${assignee}, ${dueDate}, ${ctx.id})
+    insert into tasks (brand_id, title, description, assignee, team, due_date, created_by)
+    values (${brandId}, ${title}, ${description}, ${assignee}, ${team}, ${dueDate}, ${ctx.id})
   `;
   revalidatePath(`/internal/brand/${brandId}`);
 }
@@ -52,6 +55,21 @@ async function updateTaskStatus(brandId: string, formData: FormData) {
 
   const sql = getDb();
   await sql`update tasks set status = ${status}, updated_at = now() where id = ${taskId} and brand_id = ${brandId}`;
+  revalidatePath(`/internal/brand/${brandId}`);
+}
+
+async function updateTaskTeam(brandId: string, formData: FormData) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isInternalStaff(ctx)) return;
+  if (!(await canStaffAccessBrand(ctx, brandId))) return;
+
+  const taskId = formData.get("taskId") as string;
+  const team = (formData.get("team") as string) || null;
+  if (team && !(TEAMS as readonly string[]).includes(team)) return;
+
+  const sql = getDb();
+  await sql`update tasks set team = ${team}, updated_at = now() where id = ${taskId} and brand_id = ${brandId}`;
   revalidatePath(`/internal/brand/${brandId}`);
 }
 
@@ -140,6 +158,7 @@ export default async function BrandHubPage({
   }
   const boundCreateTask = createTask.bind(null, brandId);
   const boundUpdateStatus = updateTaskStatus.bind(null, brandId);
+  const boundUpdateTeam = updateTaskTeam.bind(null, brandId);
   const boundDeleteTask = deleteTask.bind(null, brandId);
   const boundAddComment = addTaskComment.bind(null, brandId);
   const boundUpdateSlackChannel = updateSlackChannel.bind(null, brandId);
@@ -278,6 +297,7 @@ export default async function BrandHubPage({
                       task={t}
                       comments={commentsByTask.get(t.id) ?? []}
                       boundUpdateStatus={boundUpdateStatus}
+                      boundUpdateTeam={boundUpdateTeam}
                       boundDeleteTask={boundDeleteTask}
                       boundAddComment={boundAddComment}
                     />
@@ -300,6 +320,18 @@ export default async function BrandHubPage({
                 Assignee
                 <br />
                 <input name="assignee" style={{ width: "100%" }} />
+              </label>
+              <label style={{ flex: 1 }}>
+                Team
+                <br />
+                <select name="team" defaultValue="" style={{ width: "100%" }}>
+                  <option value="">Unassigned team</option>
+                  {TEAMS.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label style={{ flex: 1 }}>
                 Due date

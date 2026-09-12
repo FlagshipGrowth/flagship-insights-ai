@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Badge } from "@/components/Badge";
-import { TaskStatusSelect } from "./TaskStatusSelect";
+import { TaskStatusSelect } from "@/components/TaskStatusSelect";
+import { TaskTeamSelect } from "@/components/TaskTeamSelect";
 
 interface Task {
   id: string;
@@ -11,6 +12,7 @@ interface Task {
   category: string | null;
   status: string;
   assignee: string | null;
+  team: string | null;
   due_date: string | null;
   created_at: string;
 }
@@ -26,12 +28,14 @@ export function TaskCard({
   task,
   comments,
   boundUpdateStatus,
+  boundUpdateTeam,
   boundDeleteTask,
   boundAddComment,
 }: {
   task: Task;
   comments: Comment[];
   boundUpdateStatus: (formData: FormData) => void;
+  boundUpdateTeam: (formData: FormData) => void;
   boundDeleteTask: (formData: FormData) => void;
   boundAddComment: (formData: FormData) => void;
 }) {
@@ -41,7 +45,7 @@ export function TaskCard({
     <>
       <div className="card" style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
         <div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <button
               type="button"
               onClick={() => setIsOpen(true)}
@@ -50,6 +54,7 @@ export function TaskCard({
                 border: "none",
                 padding: 0,
                 font: "inherit",
+                color: "var(--ink)",
                 cursor: "pointer",
                 textAlign: "left",
               }}
@@ -57,6 +62,7 @@ export function TaskCard({
               <strong style={{ textDecoration: "underline", textUnderlineOffset: 3 }}>{task.title}</strong>
             </button>
             <Badge variant={task.status}>{task.status.replace("_", " ")}</Badge>
+            {task.team && <Badge variant="team">{task.team}</Badge>}
             {comments.length > 0 && <small style={{ color: "var(--muted)" }}>💬 {comments.length}</small>}
           </div>
           {task.description && <p style={{ margin: "4px 0" }}>{task.description}</p>}
@@ -67,6 +73,7 @@ export function TaskCard({
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
           <TaskStatusSelect taskId={task.id} currentStatus={task.status} action={boundUpdateStatus} />
+          <TaskTeamSelect taskId={task.id} currentTeam={task.team} action={boundUpdateTeam} />
           <form action={boundDeleteTask}>
             <input type="hidden" name="taskId" value={task.id} />
             <button type="submit" className="secondary">
@@ -115,6 +122,11 @@ export function TaskCard({
                 <small style={{ color: "var(--muted)" }}>Status</small>
                 <br />
                 <TaskStatusSelect taskId={task.id} currentStatus={task.status} action={boundUpdateStatus} />
+              </div>
+              <div>
+                <small style={{ color: "var(--muted)" }}>Team</small>
+                <br />
+                <TaskTeamSelect taskId={task.id} currentTeam={task.team} action={boundUpdateTeam} />
               </div>
               <div>
                 <small style={{ color: "var(--muted)" }}>Assignee</small>

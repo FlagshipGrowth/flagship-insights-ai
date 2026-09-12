@@ -239,3 +239,8 @@ td {
   background: var(--paper-2);
   color: var(--muted);
 }
+
+.badge-team {
+  background: var(--paper-2);
+  color: var(--ink);
+}
