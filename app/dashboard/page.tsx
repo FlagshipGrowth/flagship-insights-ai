@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { getUserContext, isInternalStaff } from "@/lib/user-context";
 import { getBrandsForClient, getBrandMetrics, getLatestInsight, PERIODS, type Period } from "@/lib/metrics";
+import { getBrandReportLinks } from "@/lib/reports";
 import { GenerateInsightButton } from "./GenerateInsightButton";
 
 export default async function DashboardPage({
@@ -29,6 +30,7 @@ export default async function DashboardPage({
 
   const metrics = await getBrandMetrics(brand.id, period);
   const latestInsight = await getLatestInsight(brand.id);
+  const { weeklyReportUrls, inventoryReportUrls } = await getBrandReportLinks(brand.id);
 
   return (
     <main>
@@ -52,6 +54,27 @@ export default async function DashboardPage({
           </a>
         ))}
       </nav>
+
+      {(weeklyReportUrls.length > 0 || inventoryReportUrls.length > 0) && (
+        <section className="card" style={{ marginBottom: 24, maxWidth: 720 }}>
+          <h2>Reports</h2>
+          <p>
+            <small>Updated weekly, usually Monday or Tuesday.</small>
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+            {weeklyReportUrls.map((r) => (
+              <a key={r.url} href={r.url} target="_blank" rel="noopener noreferrer">
+                Weekly Sales/Ads Report{r.label ? ` (${r.label})` : ""} →
+              </a>
+            ))}
+            {inventoryReportUrls.map((r) => (
+              <a key={r.url} href={r.url} target="_blank" rel="noopener noreferrer">
+                Inventory Report{r.label ? ` (${r.label})` : ""} →
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="card" style={{ marginBottom: 24, maxWidth: 720 }}>
         <h2>Latest recommendation</h2>

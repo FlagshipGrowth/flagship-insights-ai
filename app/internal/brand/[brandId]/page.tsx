@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { getUserContext, isInternalStaff, canStaffAccessBrand } from "@/lib/user-context";
 import { getBrandMetrics, PERIODS, type Period } from "@/lib/metrics";
 import { getBrandName } from "@/lib/seo";
+import { getBrandReportLinks } from "@/lib/reports";
 import { getTasks, TASK_STATUSES } from "@/lib/tasks";
 import { getDb } from "@/lib/db";
 import { Badge } from "@/components/Badge";
@@ -75,6 +76,7 @@ export default async function BrandHubPage({
   const period: Period = (PERIODS as string[]).includes(periodParam ?? "") ? (periodParam as Period) : "mtd";
 
   const metrics = await getBrandMetrics(brandId, period);
+  const { weeklyReportUrls, inventoryReportUrls } = await getBrandReportLinks(brandId);
   const tasks = await getTasks(brandId);
   const boundCreateTask = createTask.bind(null, brandId);
   const boundUpdateStatus = updateTaskStatus.bind(null, brandId);
@@ -121,6 +123,43 @@ export default async function BrandHubPage({
           </div>
         )}
       </section>
+
+      {(weeklyReportUrls.length > 0 || inventoryReportUrls.length > 0) && (
+        <section style={{ marginBottom: 32 }}>
+          <h2>Reports</h2>
+          <p>
+            <small>Updated weekly by the reporting pipeline, usually Monday or Tuesday.</small>
+          </p>
+          <div className="card" style={{ maxWidth: 640, padding: 0, overflow: "hidden" }}>
+            {[
+              ...weeklyReportUrls.map((r) => ({
+                label: `Weekly Sales/Ads Report${r.label ? ` (${r.label})` : ""}`,
+                url: r.url,
+              })),
+              ...inventoryReportUrls.map((r) => ({
+                label: `Inventory Report${r.label ? ` (${r.label})` : ""}`,
+                url: r.url,
+              })),
+            ].map((report, i, arr) => (
+              <div
+                key={report.url}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "14px 20px",
+                  borderBottom: i < arr.length - 1 ? "1px solid var(--paper-2)" : "none",
+                }}
+              >
+                <span>{report.label}</span>
+                <a href={report.url} target="_blank" rel="noopener noreferrer">
+                  Open →
+                </a>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section style={{ marginBottom: 32 }}>
         <h2>Tools</h2>
