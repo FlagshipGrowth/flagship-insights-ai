@@ -5,34 +5,68 @@ export { TASK_STATUSES, type TaskStatus } from "./task-status";
 export const TASK_SORTS = ["default", "created_desc", "created_asc", "due_date"] as const;
 export type TaskSort = (typeof TASK_SORTS)[number];
 
-export async function getTasks(brandId: string, sort: TaskSort = "default") {
+export interface Task {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string | null;
+  status: string;
+  assignee: string | null;
+  team: string | null;
+  due_date: string | null;
+  created_at: string;
+}
+
+function normalizeTask(r: any): Task {
+  return {
+    id: r.id,
+    title: r.title,
+    description: r.description,
+    category: r.category,
+    status: r.status,
+    assignee: r.assignee,
+    team: r.team,
+    due_date: r.due_date instanceof Date ? r.due_date.toISOString() : r.due_date,
+    created_at: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
+  };
+}
+
+export async function getTasks(brandId: string, sort: TaskSort = "default"): Promise<Task[]> {
   const sql = getDb();
   // Four full queries rather than composing one dynamically — the neon serverless driver's
   // sql`` tag treats every ${} as a bound value parameter, not a raw SQL fragment, so there's no
   // safe way to interpolate just the ORDER BY clause into one shared query.
   switch (sort) {
     case "created_desc":
-      return sql`
-        select id, title, description, category, status, assignee, team, due_date, created_at
-        from tasks where brand_id = ${brandId} order by created_at desc
-      `;
+      return (
+        await sql`
+          select id, title, description, category, status, assignee, team, due_date, created_at
+          from tasks where brand_id = ${brandId} order by created_at desc
+        `
+      ).map(normalizeTask);
     case "created_asc":
-      return sql`
-        select id, title, description, category, status, assignee, team, due_date, created_at
-        from tasks where brand_id = ${brandId} order by created_at asc
-      `;
+      return (
+        await sql`
+          select id, title, description, category, status, assignee, team, due_date, created_at
+          from tasks where brand_id = ${brandId} order by created_at asc
+        `
+      ).map(normalizeTask);
     case "due_date":
-      return sql`
-        select id, title, description, category, status, assignee, team, due_date, created_at
-        from tasks where brand_id = ${brandId}
-        order by due_date nulls last, created_at desc
-      `;
+      return (
+        await sql`
+          select id, title, description, category, status, assignee, team, due_date, created_at
+          from tasks where brand_id = ${brandId}
+          order by due_date nulls last, created_at desc
+        `
+      ).map(normalizeTask);
     default:
-      return sql`
-        select id, title, description, category, status, assignee, team, due_date, created_at
-        from tasks where brand_id = ${brandId}
-        order by case status when 'todo' then 0 when 'in_progress' then 1 else 2 end, due_date nulls last, created_at desc
-      `;
+      return (
+        await sql`
+          select id, title, description, category, status, assignee, team, due_date, created_at
+          from tasks where brand_id = ${brandId}
+          order by case status when 'todo' then 0 when 'in_progress' then 1 else 2 end, due_date nulls last, created_at desc
+        `
+      ).map(normalizeTask);
   }
 }
 
