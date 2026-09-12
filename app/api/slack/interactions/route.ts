@@ -1,5 +1,4 @@
-import { verifySlackSignature, postSlackMessage } from "@/lib/slack";
-import { getDb } from "@/lib/db";
+import { verifySlackSignature } from "@/lib/slack";
 
 export const runtime = "nodejs"; // needs Node's crypto — don't switch this to "edge"
 
@@ -11,6 +10,10 @@ export const runtime = "nodejs"; // needs Node's crypto — don't switch this to
  *  1. api.slack.com/apps -> your app -> "Interactivity & Shortcuts" -> toggle On
  *  2. Request URL: https://<netlify-domain>/api/slack/interactions
  *  3. Save, then reinstall the app if prompted.
+ *
+ * Interactivity payloads also need a response within 3 seconds, so this only verifies the
+ * signature and parses the payload — the actual DB lookup + insert happens in
+ * slack-create-task-from-insight-background.ts, which posts the real confirmation itself.
  */
 export async function POST(req: Request) {
   const rawBody = await req.text();
@@ -36,30 +39,17 @@ export async function POST(req: Request) {
 
     if (action?.action_id === "create_task_from_alert") {
       const { insightId, title } = JSON.parse(action.value);
-      const channelId = payload.channel?.id;
 
-      const sql = getDb();
-      const insightRows = await sql`select brand_id from insights where id = ${insightId}`;
-      const brandId = insightRows[0]?.brand_id;
-
-      if (!brandId) {
-        await postSlackMessage({
-          channel: channelId,
-          text: `⚠️ Couldn't find the insight this alert came from — task not created.`,
-          thread_ts: payload.message?.ts,
-        });
-        return Response.json({ ok: true });
-      }
-
-      await sql`
-        insert into tasks (brand_id, title, description)
-        values (${brandId}, ${title}, ${`Created from a Slack alert (insight ${insightId}).`})
-      `;
-
-      await postSlackMessage({
-        channel: channelId,
-        text: `✅ Task created from this alert by <@${payload.user.id}>: *${title}*`,
-        thread_ts: payload.message?.ts,
+      await fetch(new URL("/.netlify/functions/slack-create-task-from-insight-background", req.url), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          insightId,
+          title,
+          userId: payload.user?.id,
+          channelId: payload.channel?.id,
+          threadTs: payload.message?.ts,
+        }),
       });
 
       return Response.json({ ok: true });

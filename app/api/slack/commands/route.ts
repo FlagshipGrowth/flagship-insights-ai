@@ -1,5 +1,4 @@
 import { verifySlackSignature } from "@/lib/slack";
-import { getDb } from "@/lib/db";
 
 export const runtime = "nodejs"; // needs Node's crypto — don't switch this to "edge"
 
@@ -13,6 +12,12 @@ export const runtime = "nodejs"; // needs Node's crypto — don't switch this to
  *  4. Reinstall the app to the workspace to pick up the new command.
  *
  * Usage: /create-task <title> | client:<brand name> | priority:<low|med|high>
+ *
+ * Slack requires a response within 3 seconds. This route only verifies the signature and
+ * parses the text — both fast, no DB — then hands the actual brand lookup + task insert off to
+ * slack-create-task-background.ts (a Netlify background function) and acks immediately. The
+ * real confirmation (or "brand not found" error) gets posted to the channel a moment later by
+ * that background function, not by this response.
  */
 export async function POST(req: Request) {
   // Must read as raw text FIRST — verification depends on the exact raw bytes.
@@ -34,6 +39,7 @@ export async function POST(req: Request) {
   const command = params.get("command");
   const text = (params.get("text") ?? "").trim();
   const userId = params.get("user_id");
+  const channelId = params.get("channel_id");
 
   if (command !== "/create-task") {
     return Response.json({ error: "Unknown command" }, { status: 400 });
@@ -60,30 +66,22 @@ export async function POST(req: Request) {
     });
   }
 
-  const sql = getDb();
-  const brands = await sql`
-    select id, name from brands where lower(name) = lower(${fields.client}) limit 1
-  `;
-  const brand = brands[0] ?? (await sql`
-    select id, name from brands where name ilike ${"%" + fields.client + "%"} limit 2
-  `)[0];
-
-  if (!brand) {
-    return Response.json({
-      response_type: "ephemeral",
-      text: `Couldn't find a brand matching "${fields.client}" — check the spelling and try again.`,
-    });
-  }
-
-  const description = fields.priority ? `Priority: ${fields.priority}\n\nFlagged via Slack.` : "Flagged via Slack.";
-
-  await sql`
-    insert into tasks (brand_id, title, description)
-    values (${brand.id}, ${title}, ${description})
-  `;
+  // Fire the background function and wait only for Netlify to accept the invocation (near-
+  // instant — background functions return 202 immediately, before their own work finishes).
+  await fetch(new URL("/.netlify/functions/slack-create-task-background", req.url), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title,
+      client: fields.client,
+      priority: fields.priority,
+      userId,
+      channelId,
+    }),
+  });
 
   return Response.json({
-    response_type: "in_channel",
-    text: `✅ Task created for *${brand.name}* by <@${userId}>: *${title}*${fields.priority ? ` [${fields.priority}]` : ""}`,
+    response_type: "ephemeral",
+    text: `⏳ Creating task for "${fields.client}"…`,
   });
 }
