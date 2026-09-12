@@ -31,31 +31,56 @@ function normalizeTask(r: any): Task {
   };
 }
 
-export async function getTasks(brandId: string, sort: TaskSort = "default"): Promise<Task[]> {
+// Sentinel filter value meaning "no team/assignee set", not a literal string any task actually
+// has — lets one dropdown express both "show everything" (param left out) and "show only the
+// unassigned ones" (this sentinel) without a separate UI control for each.
+export const UNASSIGNED_FILTER = "__unassigned__";
+
+export async function getTasks(
+  brandId: string,
+  sort: TaskSort = "default",
+  filters: { team?: string; assignee?: string } = {}
+): Promise<Task[]> {
   const sql = getDb();
   // Four full queries rather than composing one dynamically — the neon serverless driver's
   // sql`` tag treats every ${} as a bound value parameter, not a raw SQL fragment, so there's no
-  // safe way to interpolate just the ORDER BY clause into one shared query.
+  // safe way to interpolate just the ORDER BY clause into one shared query. Same reasoning for
+  // expressing "no filter" as a WHERE condition (team/assignee params) rather than an omitted
+  // clause.
+  const teamParam = filters.team ?? null;
+  const assigneeParam = filters.assignee ?? null;
+
   switch (sort) {
     case "created_desc":
       return (
         await sql`
           select id, title, description, category, status, assignee, team, due_date, created_at
-          from tasks where brand_id = ${brandId} order by created_at desc
+          from tasks
+          where brand_id = ${brandId}
+            and (${teamParam}::text is null or (${teamParam} = ${UNASSIGNED_FILTER} and team is null) or team = ${teamParam})
+            and (${assigneeParam}::text is null or (${assigneeParam} = ${UNASSIGNED_FILTER} and assignee is null) or assignee = ${assigneeParam})
+          order by created_at desc
         `
       ).map(normalizeTask);
     case "created_asc":
       return (
         await sql`
           select id, title, description, category, status, assignee, team, due_date, created_at
-          from tasks where brand_id = ${brandId} order by created_at asc
+          from tasks
+          where brand_id = ${brandId}
+            and (${teamParam}::text is null or (${teamParam} = ${UNASSIGNED_FILTER} and team is null) or team = ${teamParam})
+            and (${assigneeParam}::text is null or (${assigneeParam} = ${UNASSIGNED_FILTER} and assignee is null) or assignee = ${assigneeParam})
+          order by created_at asc
         `
       ).map(normalizeTask);
     case "due_date":
       return (
         await sql`
           select id, title, description, category, status, assignee, team, due_date, created_at
-          from tasks where brand_id = ${brandId}
+          from tasks
+          where brand_id = ${brandId}
+            and (${teamParam}::text is null or (${teamParam} = ${UNASSIGNED_FILTER} and team is null) or team = ${teamParam})
+            and (${assigneeParam}::text is null or (${assigneeParam} = ${UNASSIGNED_FILTER} and assignee is null) or assignee = ${assigneeParam})
           order by due_date nulls last, created_at desc
         `
       ).map(normalizeTask);
@@ -63,11 +88,24 @@ export async function getTasks(brandId: string, sort: TaskSort = "default"): Pro
       return (
         await sql`
           select id, title, description, category, status, assignee, team, due_date, created_at
-          from tasks where brand_id = ${brandId}
+          from tasks
+          where brand_id = ${brandId}
+            and (${teamParam}::text is null or (${teamParam} = ${UNASSIGNED_FILTER} and team is null) or team = ${teamParam})
+            and (${assigneeParam}::text is null or (${assigneeParam} = ${UNASSIGNED_FILTER} and assignee is null) or assignee = ${assigneeParam})
           order by case status when 'todo' then 0 when 'in_progress' then 1 else 2 end, due_date nulls last, created_at desc
         `
       ).map(normalizeTask);
   }
+}
+
+/** Distinct assignee values already in use on this brand's tasks — populates the assignee filter
+ * dropdown with real options instead of a free-text field prone to typos/mismatches. */
+export async function getDistinctAssignees(brandId: string): Promise<string[]> {
+  const sql = getDb();
+  const rows = await sql`
+    select distinct assignee from tasks where brand_id = ${brandId} and assignee is not null order by assignee
+  `;
+  return rows.map((r: any) => r.assignee);
 }
 
 export interface AdminTask {

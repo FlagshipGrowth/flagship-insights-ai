@@ -7,7 +7,9 @@ import { getBrandReportLinks, getInventoryPreview, getReconciliationSummary } fr
 import {
   getTasks,
   getTaskCommentsForBrand,
+  getDistinctAssignees,
   logTaskActivity,
+  UNASSIGNED_FILTER,
   TASK_STATUSES,
   TASK_SORTS,
   type TaskSort,
@@ -159,7 +161,7 @@ export default async function BrandHubPage({
   searchParams,
 }: {
   params: Promise<{ brandId: string }>;
-  searchParams: Promise<{ period?: string; taskSort?: string }>;
+  searchParams: Promise<{ period?: string; taskSort?: string; teamFilter?: string; assigneeFilter?: string }>;
 }) {
   const { brandId } = await params;
   const ctx = await getUserContext();
@@ -170,18 +172,26 @@ export default async function BrandHubPage({
   const brandName = await getBrandName(brandId);
   if (!brandName) redirect("/internal");
 
-  const { period: periodParam, taskSort: taskSortParam } = await searchParams;
+  const {
+    period: periodParam,
+    taskSort: taskSortParam,
+    teamFilter: teamFilterParam,
+    assigneeFilter: assigneeFilterParam,
+  } = await searchParams;
   const period: Period = (PERIODS as string[]).includes(periodParam ?? "") ? (periodParam as Period) : "mtd";
   const taskSort: TaskSort = (TASK_SORTS as readonly string[]).includes(taskSortParam ?? "")
     ? (taskSortParam as TaskSort)
     : "default";
+  const teamFilter = teamFilterParam || undefined;
+  const assigneeFilter = assigneeFilterParam || undefined;
 
   const metrics = await getBrandMetrics(brandId, period);
   const metricsSeries = await getBrandMetricsTimeSeries(brandId, period);
   const { weeklyReportUrls, inventoryReportUrls, reconciliationReportUrls } = await getBrandReportLinks(brandId);
   const inventoryPreview = await getInventoryPreview(brandId);
   const reconciliationSummary = await getReconciliationSummary(brandId);
-  const tasks = await getTasks(brandId, taskSort);
+  const tasks = await getTasks(brandId, taskSort, { team: teamFilter, assignee: assigneeFilter });
+  const distinctAssignees = await getDistinctAssignees(brandId);
   const comments = await getTaskCommentsForBrand(brandId);
   const commentsByTask = new Map<string, typeof comments>();
   for (const c of comments) {
@@ -315,7 +325,7 @@ export default async function BrandHubPage({
           {TASK_SORTS.map((s) => (
             <a
               key={s}
-              href={`/internal/brand/${brandId}?period=${period}&taskSort=${s}`}
+              href={`/internal/brand/${brandId}?period=${period}&taskSort=${s}&teamFilter=${teamFilter ?? ""}&assigneeFilter=${assigneeFilter ?? ""}`}
               className={s === taskSort ? "active" : ""}
             >
               {TASK_SORT_LABELS[s]}
@@ -323,8 +333,45 @@ export default async function BrandHubPage({
           ))}
         </nav>
 
+        <form
+          style={{ display: "flex", gap: 12, alignItems: "flex-end", marginBottom: 20 }}
+        >
+          <input type="hidden" name="period" value={period} />
+          <input type="hidden" name="taskSort" value={taskSort} />
+          <label>
+            Team
+            <br />
+            <select name="teamFilter" defaultValue={teamFilter ?? ""}>
+              <option value="">All teams</option>
+              <option value={UNASSIGNED_FILTER}>Unassigned</option>
+              {TEAMS.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Assignee
+            <br />
+            <select name="assigneeFilter" defaultValue={assigneeFilter ?? ""}>
+              <option value="">All assignees</option>
+              <option value={UNASSIGNED_FILTER}>Unassigned</option>
+              {distinctAssignees.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="submit">Filter</button>
+          {(teamFilter || assigneeFilter) && (
+            <a href={`/internal/brand/${brandId}?period=${period}&taskSort=${taskSort}`}>Clear filters</a>
+          )}
+        </form>
+
         {tasks.length === 0 ? (
-          <p>No tasks yet.</p>
+          <p>{teamFilter || assigneeFilter ? "No tasks match this filter." : "No tasks yet."}</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 24, maxWidth: 640 }}>
             {Array.from(tasksByCategory.entries()).map(([category, categoryTasks]) => (
