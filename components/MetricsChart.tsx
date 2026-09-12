@@ -46,7 +46,10 @@ function formatValue(metricKey: string, value: number): string {
 }
 
 function formatDate(iso: string): string {
-  const d = new Date(iso + "T00:00:00Z");
+  // Postgres returns `date` columns as full ISO timestamps ("2026-08-30T00:00:00.000Z"), not
+  // bare "YYYY-MM-DD" — `new Date()` parses either form correctly on its own, no need to (and
+  // don't) append a time suffix, which would double up and produce an Invalid Date.
+  const d = new Date(iso);
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
 }
 

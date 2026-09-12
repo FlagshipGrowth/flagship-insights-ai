@@ -43,12 +43,16 @@ export async function getBrandMetrics(brandId: string, period: Period) {
 export async function getBrandMetricsTimeSeries(brandId: string, period: Period) {
   const { from, to } = dateRangeFor(period);
   const sql = getDb();
-  return sql`
+  const rows = await sql`
     select date, channel, metric_key, value
     from metrics_daily
     where brand_id = ${brandId} and date >= ${from} and date <= ${to}
     order by date
   `;
+  // The neon driver returns `numeric` columns as strings (to avoid float precision loss on
+  // large values) — MetricsChart does real arithmetic (.toFixed, etc.) on `value`, so convert
+  // here rather than let every consumer remember to.
+  return rows.map((r: any) => ({ ...r, value: Number(r.value) }));
 }
 
 export async function getBrandsForClient(clientId: string) {
