@@ -15,10 +15,11 @@ export function TaskStatusSelect({
   const { saved, run } = useSavedFeedback();
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    <div style={{ position: "relative", width: "100%" }}>
       <select
         name="status"
         defaultValue={currentStatus}
+        style={{ width: "100%" }}
         onChange={(e) => {
           const formData = new FormData();
           formData.set("taskId", taskId);
@@ -32,7 +33,22 @@ export function TaskStatusSelect({
           </option>
         ))}
       </select>
-      {saved && <small style={{ color: "#16A34A", fontWeight: 600 }}>Saved ✓</small>}
+      {saved && (
+        <small
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            whiteSpace: "nowrap",
+            color: "#16A34A",
+            fontWeight: 600,
+            background: "#fff",
+            zIndex: 1,
+          }}
+        >
+          Saved ✓
+        </small>
+      )}
     </div>
   );
 }

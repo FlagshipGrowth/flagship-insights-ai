@@ -86,21 +86,32 @@ export function TaskCard({
           >
             <strong style={{ textDecoration: "underline", textUnderlineOffset: 3 }}>{task.title}</strong>
           </button>
-          <Badge variant={task.status}>{task.status.replace("_", " ")}</Badge>
-          {task.team && <Badge variant="team">{task.team}</Badge>}
           {comments.length > 0 && (
             <small style={{ color: "var(--muted)", flexShrink: 0 }}>💬 {comments.length}</small>
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
-          <small style={{ color: "var(--muted)", minWidth: 70, textAlign: "right" }}>
+          <small
+            style={{
+              color: "var(--muted)",
+              width: 80,
+              textAlign: "right",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
             {task.assignee ?? "Unassigned"}
           </small>
-          <small style={{ color: "var(--muted)", minWidth: 80, textAlign: "right" }}>
+          <small style={{ color: "var(--muted)", width: 76, textAlign: "right", flexShrink: 0 }}>
             {task.due_date ? formatDateOnly(task.due_date) : "—"}
           </small>
-          <TaskStatusSelect taskId={task.id} currentStatus={task.status} action={boundUpdateStatus} />
-          <TaskTeamSelect taskId={task.id} currentTeam={task.team} action={boundUpdateTeam} />
+          <div style={{ width: 110 }}>
+            <TaskStatusSelect taskId={task.id} currentStatus={task.status} action={boundUpdateStatus} />
+          </div>
+          <div style={{ width: 150 }}>
+            <TaskTeamSelect taskId={task.id} currentTeam={task.team} action={boundUpdateTeam} />
+          </div>
           <form action={boundDeleteTask}>
             <input type="hidden" name="taskId" value={task.id} />
             <button type="submit" className="secondary">

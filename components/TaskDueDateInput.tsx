@@ -14,7 +14,7 @@ export function TaskDueDateInput({
   const { saved, run } = useSavedFeedback();
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    <div style={{ position: "relative" }}>
       <input
         type="date"
         name="dueDate"
@@ -26,7 +26,22 @@ export function TaskDueDateInput({
           run(action, formData);
         }}
       />
-      {saved && <small style={{ color: "#16A34A", fontWeight: 600 }}>Saved ✓</small>}
+      {saved && (
+        <small
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            whiteSpace: "nowrap",
+            color: "#16A34A",
+            fontWeight: 600,
+            background: "#fff",
+            zIndex: 1,
+          }}
+        >
+          Saved ✓
+        </small>
+      )}
     </div>
   );
 }
