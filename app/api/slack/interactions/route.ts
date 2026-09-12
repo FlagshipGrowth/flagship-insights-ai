@@ -81,6 +81,17 @@ export async function POST(req: Request) {
             },
             {
               type: "input",
+              block_id: "team_block",
+              label: { type: "plain_text", text: "Department" },
+              element: {
+                type: "static_select",
+                action_id: "team_input",
+                placeholder: { type: "plain_text", text: "Select a department" },
+                options: TEAMS.map((t) => ({ text: { type: "plain_text", text: t }, value: t })),
+              },
+            },
+            {
+              type: "input",
               block_id: "assignee_block",
               optional: true,
               label: { type: "plain_text", text: "Assignee" },
@@ -92,27 +103,13 @@ export async function POST(req: Request) {
             },
             {
               type: "input",
-              block_id: "team_block",
-              optional: true,
-              label: { type: "plain_text", text: "Department" },
-              element: {
-                type: "static_select",
-                action_id: "team_input",
-                placeholder: { type: "plain_text", text: "Select a department" },
-                options: TEAMS.map((t) => ({ text: { type: "plain_text", text: t }, value: t })),
-              },
-            },
-            {
-              type: "input",
               block_id: "due_date_block",
-              optional: true,
               label: { type: "plain_text", text: "Due date" },
               element: { type: "datepicker", action_id: "due_date_input" },
             },
             {
               type: "input",
               block_id: "priority_block",
-              optional: true,
               label: { type: "plain_text", text: "Priority" },
               element: {
                 type: "static_select",
