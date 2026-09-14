@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getUserContext, isInternalStaff } from "@/lib/user-context";
 import { getBrandsForClient } from "@/lib/metrics";
+import { PendingApproval } from "@/components/PendingApproval";
 
 // Statuses reflect docs/phase1-amazon-application.md and SPEC.md §3/§9 — update here as
 // each platform's approval actually moves, don't let this drift from the real status.
@@ -16,6 +17,7 @@ export default async function ConnectionsPage() {
   const ctx = await getUserContext();
   if (!ctx) redirect("/onboarding");
   if (isInternalStaff(ctx)) redirect("/internal");
+  if (ctx.status === "pending") return <PendingApproval />;
   if (!ctx.clientId) {
     return <main>Your account isn't linked to a client yet.</main>;
   }

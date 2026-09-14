@@ -58,9 +58,11 @@ export async function POST(req: Request) {
         // signed in, with clerk_user_id left null. Conflicting on clerk_user_id would miss that
         // row and attempt a second INSERT, failing on the separate `users.email` unique
         // constraint the moment they actually sign up.
+        // Vetted via the allowlist above, not the sign-up approval flow (organizationMembership
+        // below) — approved immediately.
         await sql`
-          insert into users (client_id, role, email, clerk_user_id)
-          values (null, ${staffRole}, ${email}, ${event.data.id})
+          insert into users (client_id, role, email, clerk_user_id, status)
+          values (null, ${staffRole}, ${email}, ${event.data.id}, 'approved')
           on conflict (email) do update set clerk_user_id = excluded.clerk_user_id
         `;
       }
@@ -116,9 +118,14 @@ export async function POST(req: Request) {
         // the new one) and attempt a second INSERT, which would then fail on the separate
         // `users.email` unique constraint. Email is always present and unique, so it's the
         // correct arbiter for linking a pending row to the real Clerk identity once it exists.
+        // status is set only on the INSERT branch, not in `do update` — a genuinely new row (no
+        // admin pre-provisioned it, no prior sign-up) starts 'pending' until an admin approves it
+        // on /internal/approvals, but a row that already exists (pre-provisioned by an admin, or
+        // already approved from an earlier membership event) keeps whatever status it already has
+        // when its role/client_id/clerk_user_id get updated here.
         await sql`
-          insert into users (client_id, role, email, clerk_user_id)
-          values (${client[0].id}, ${role}, ${email}, ${clerkUserId})
+          insert into users (client_id, role, email, clerk_user_id, status)
+          values (${client[0].id}, ${role}, ${email}, ${clerkUserId}, 'pending')
           on conflict (email)
           do update set role = excluded.role, client_id = excluded.client_id, clerk_user_id = excluded.clerk_user_id
         `;

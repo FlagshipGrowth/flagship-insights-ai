@@ -6,6 +6,7 @@ import { getBrandReportLinks, getInventoryPreview, getReconciliationSummary } fr
 import { MetricsChart } from "@/components/MetricsChart";
 import { InventoryPreviewCard } from "@/components/InventoryPreviewCard";
 import { ReconciliationPreviewCard } from "@/components/ReconciliationPreviewCard";
+import { PendingApproval } from "@/components/PendingApproval";
 import { GenerateInsightButton } from "./GenerateInsightButton";
 
 export default async function DashboardPage({
@@ -16,6 +17,7 @@ export default async function DashboardPage({
   const ctx = await getUserContext();
   if (!ctx) redirect("/onboarding");
   if (isInternalStaff(ctx)) redirect("/internal");
+  if (ctx.status === "pending") return <PendingApproval />;
   if (!ctx.clientId) {
     return <main>Your account isn't linked to a client yet — contact Flagship Growth.</main>;
   }

@@ -5,6 +5,7 @@ import { getBrandsForClient } from "@/lib/metrics";
 import { brandBelongsToClient } from "@/lib/seo";
 import { getProductsForBrand, addProduct, type NewProductInput } from "@/lib/catalog";
 import { Badge } from "@/components/Badge";
+import { PendingApproval } from "@/components/PendingApproval";
 
 async function addProductAction(brandId: string, formData: FormData) {
   "use server";
@@ -50,6 +51,7 @@ export default async function CatalogPage({
   const ctx = await getUserContext();
   if (!ctx) redirect("/onboarding");
   if (isInternalStaff(ctx)) redirect("/internal");
+  if (ctx.status === "pending") return <PendingApproval />;
   if (!ctx.clientId) {
     return <main>Your account isn't linked to a client yet.</main>;
   }

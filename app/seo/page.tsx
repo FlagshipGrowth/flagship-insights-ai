@@ -5,6 +5,7 @@ import { getBrandsForClient } from "@/lib/metrics";
 import { getProductOptimizations, brandBelongsToClient } from "@/lib/seo";
 import { getDb } from "@/lib/db";
 import { Badge } from "@/components/Badge";
+import { PendingApproval } from "@/components/PendingApproval";
 
 async function reviewOptimization(formData: FormData) {
   "use server";
@@ -31,6 +32,7 @@ export default async function SeoPage({ searchParams }: { searchParams: Promise<
   const ctx = await getUserContext();
   if (!ctx) redirect("/onboarding");
   if (isInternalStaff(ctx)) redirect("/internal");
+  if (ctx.status === "pending") return <PendingApproval />;
   if (!ctx.clientId) {
     return <main>Your account isn't linked to a client yet.</main>;
   }

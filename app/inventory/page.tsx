@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { getUserContext, isInternalStaff } from "@/lib/user-context";
 import { getBrandsForClient } from "@/lib/metrics";
 import { getDb } from "@/lib/db";
+import { PendingApproval } from "@/components/PendingApproval";
 
 // The only inventory source that isn't blocked on a platform approval (SPEC.md §6) —
 // Amazon/Walmart/3PL inventory all wait on the same approvals as their metrics sync.
@@ -37,6 +38,7 @@ export default async function InventoryPage({
   const ctx = await getUserContext();
   if (!ctx) redirect("/onboarding");
   if (isInternalStaff(ctx)) redirect("/internal");
+  if (ctx.status === "pending") return <PendingApproval />;
   if (!ctx.clientId) {
     return <main>Your account isn't linked to a client yet.</main>;
   }
