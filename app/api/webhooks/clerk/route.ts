@@ -2,18 +2,13 @@ import { Webhook } from "svix";
 import { headers } from "next/headers";
 import { getDb } from "@/lib/db";
 import { seedOnboardingTasks } from "@/lib/onboarding-tasks";
+import { parseEmailList } from "@/lib/env-lists";
 
-// INTERNAL_STAFF_EMAILS / ACCOUNT_MANAGER_EMAILS decide staff role on sign-up — there's no
-// Clerk "internal staff" org, so this is the simplest thing that works without asking Joey to
-// hand-edit Clerk user metadata for every hire. Revisit if the staff list outgrows an env var.
-// Which clients an account_manager actually sees is separate — see account_manager_assignments,
-// managed at /internal/assignments.
-function parseEmailList(envVar: string | undefined): string[] {
-  return (envVar ?? "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-}
+// INTERNAL_STAFF_EMAILS / ACCOUNT_MANAGER_EMAILS are a cold-bootstrap fallback for staff who
+// have no pre-provisioned `users` row at all (see user.created below) — this is the mechanism
+// that let Joey/Vinny get internal_admin access before /internal/employees (owner-invited,
+// DB-row-first) existed. Which clients an account_manager actually sees is separate — see
+// account_manager_assignments, managed at /internal/assignments.
 const INTERNAL_STAFF_EMAILS = parseEmailList(process.env.INTERNAL_STAFF_EMAILS);
 const ACCOUNT_MANAGER_EMAILS = parseEmailList(process.env.ACCOUNT_MANAGER_EMAILS);
 
@@ -46,24 +41,33 @@ export async function POST(req: Request) {
   switch (event.type) {
     case "user.created": {
       const email = event.data.email_addresses?.[0]?.email_address?.toLowerCase();
-      const staffRole = email && ACCOUNT_MANAGER_EMAILS.includes(email)
+      if (!email) break;
+      const clerkUserId = event.data.id;
+
+      // A pre-provisioned row already exists — an owner-invited employee
+      // (app/internal/employees/page.tsx) or an admin-added client teammate
+      // (app/internal/brand/[brandId]/page.tsx's addBrandUser). Link identity only; role,
+      // client_id, and status were already decided by whoever created that row, and
+      // organizationMembership below independently reconciles a client user's role/client_id
+      // when they join/create an org — this branch must not fight with that.
+      const existing = await sql`select id from users where email = ${email}`;
+      if (existing.length > 0) {
+        await sql`update users set clerk_user_id = ${clerkUserId} where id = ${existing[0].id}`;
+        break;
+      }
+
+      // No pre-existing row — fall back to the env-list cold-bootstrap (see the const comment
+      // above). Anyone matching neither this nor a pre-provisioned row gets no row at all here;
+      // they only get one via the client sign-up path (organizationMembership, status='pending').
+      const staffRole = ACCOUNT_MANAGER_EMAILS.includes(email)
         ? "account_manager"
-        : email && INTERNAL_STAFF_EMAILS.includes(email)
+        : INTERNAL_STAFF_EMAILS.includes(email)
           ? "internal_admin"
           : null;
-      if (email && staffRole) {
-        // Conflict target is email, not clerk_user_id — same reasoning as the
-        // organizationMembership handler below: an account manager can be pre-provisioned (e.g.
-        // assigned to a brand, /internal/brands/new's account-manager picker) before they've ever
-        // signed in, with clerk_user_id left null. Conflicting on clerk_user_id would miss that
-        // row and attempt a second INSERT, failing on the separate `users.email` unique
-        // constraint the moment they actually sign up.
-        // Vetted via the allowlist above, not the sign-up approval flow (organizationMembership
-        // below) — approved immediately.
+      if (staffRole) {
         await sql`
           insert into users (client_id, role, email, clerk_user_id, status)
-          values (null, ${staffRole}, ${email}, ${event.data.id}, 'approved')
-          on conflict (email) do update set clerk_user_id = excluded.clerk_user_id
+          values (null, ${staffRole}, ${email}, ${clerkUserId}, 'approved')
         `;
       }
       break;

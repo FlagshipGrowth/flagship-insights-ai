@@ -1,5 +1,8 @@
+import { cache } from "react";
+import { cookies } from "next/headers";
 import { auth } from "@clerk/nextjs/server";
 import { getDb } from "./db";
+import { parseEmailList } from "./env-lists";
 
 export type Role = "client_owner" | "client_teammate" | "account_manager" | "internal_admin";
 
@@ -11,20 +14,59 @@ export interface UserContext {
   clientId: string | null;
   email: string;
   status: ApprovalStatus;
+  /** Set only when the REAL signed-in user is an owner previewing someone else's account (see
+   * lib/impersonation.ts) — everything else on this object describes the account being
+   * previewed, not the real signed-in owner. */
+  impersonating?: { realOwnerId: string; realOwnerEmail: string };
+}
+
+// Deliberately separate from INTERNAL_STAFF_EMAILS (which only bootstraps a role once, at
+// sign-up) — this is checked live on every request, so Admin View access can never silently
+// expand just because someone else ends up with the internal_admin role down the line.
+const OWNER_EMAILS = parseEmailList(process.env.OWNER_EMAILS);
+
+export function isOwner(ctx: UserContext): boolean {
+  return OWNER_EMAILS.includes(ctx.email.toLowerCase());
+}
+
+const IMPERSONATION_COOKIE = "fg_impersonate_user_id";
+
+async function loadUserRow(sql: ReturnType<typeof getDb>, where: { clerkUserId?: string; id?: string }) {
+  const rows = where.clerkUserId
+    ? await sql`select id, role, client_id, email, status from users where clerk_user_id = ${where.clerkUserId}`
+    : await sql`select id, role, client_id, email, status from users where id = ${where.id}`;
+  if (rows.length === 0) return null;
+  return { id: rows[0].id, role: rows[0].role, clientId: rows[0].client_id, email: rows[0].email, status: rows[0].status } as Omit<
+    UserContext,
+    "impersonating"
+  >;
 }
 
 /** Looks up the signed-in Clerk user in our own `users` table — that table (kept in sync by
- * app/api/webhooks/clerk/route.ts) is the source of truth for role, not Clerk's own claims. */
-export async function getUserContext(): Promise<UserContext | null> {
+ * app/api/webhooks/clerk/route.ts) is the source of truth for role, not Clerk's own claims.
+ * Wrapped in React's cache() since this is called from both a page and the impersonation banner
+ * on the same request. */
+export const getUserContext = cache(async (): Promise<UserContext | null> => {
   const { userId } = await auth();
   if (!userId) return null;
 
   const sql = getDb();
-  const rows = await sql`select id, role, client_id, email, status from users where clerk_user_id = ${userId}`;
-  if (rows.length === 0) return null;
+  const realCtx = await loadUserRow(sql, { clerkUserId: userId });
+  if (!realCtx) return null;
 
-  return { id: rows[0].id, role: rows[0].role, clientId: rows[0].client_id, email: rows[0].email, status: rows[0].status };
-}
+  // Impersonation only ever applies on top of a genuinely real owner session — the cookie
+  // selects WHO to preview, never identity itself, and a stale/invalid value just falls back to
+  // the real owner's own context rather than erroring.
+  if (!isOwner(realCtx)) return realCtx;
+
+  const targetId = (await cookies()).get(IMPERSONATION_COOKIE)?.value;
+  if (!targetId || targetId === realCtx.id) return realCtx;
+
+  const target = await loadUserRow(sql, { id: targetId });
+  if (!target) return realCtx;
+
+  return { ...target, impersonating: { realOwnerId: realCtx.id, realOwnerEmail: realCtx.email } };
+});
 
 export function isInternalStaff(ctx: UserContext): boolean {
   return ctx.role === "account_manager" || ctx.role === "internal_admin";

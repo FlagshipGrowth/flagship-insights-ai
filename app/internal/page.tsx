@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
-import { getUserContext, isInternalStaff } from "@/lib/user-context";
+import { getUserContext, isInternalStaff, isOwner } from "@/lib/user-context";
 import { getAllBrandsWithClients, getAssignedBrandsWithClients } from "@/lib/metrics";
 import { getOpenTaskCountsByTeam } from "@/lib/tasks";
 import { getPendingUsersCount } from "@/lib/user-approvals";
@@ -14,8 +14,8 @@ export default async function InternalPage() {
 
   const rows =
     ctx.role === "account_manager" ? await getAssignedBrandsWithClients(ctx.id) : await getAllBrandsWithClients();
-  const openCountsByTeam = ctx.role === "internal_admin" ? await getOpenTaskCountsByTeam() : null;
-  const pendingUsersCount = ctx.role === "internal_admin" ? await getPendingUsersCount() : 0;
+  const openCountsByTeam = isOwner(ctx) ? await getOpenTaskCountsByTeam() : null;
+  const pendingUsersCount = isOwner(ctx) ? await getPendingUsersCount() : 0;
 
   return (
     <main>
@@ -51,11 +51,13 @@ export default async function InternalPage() {
 
       <nav className="top-nav">
         <a href="/internal/my-tasks">My tasks</a>
-        {ctx.role === "internal_admin" && (
+        {isOwner(ctx) && (
           <>
             <a href="/internal/brands/new">Add new brand</a>
-            <a href="/internal/assignments">Manage account manager assignments</a>
+            <a href="/internal/assignments">Manage employee assignments</a>
+            <a href="/internal/employees">Employees</a>
             <a href="/internal/tasks">Tasks by team</a>
+            <a href="/internal/view-as">View as</a>
             <a href="/internal/approvals">
               Sign Up Approval{pendingUsersCount > 0 && <Badge variant="pending"> {pendingUsersCount}</Badge>}
             </a>

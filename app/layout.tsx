@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Inter } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 import "./globals.css";
 
 // Brand guidelines (Flagship_Growth_Brand_Guidelines_FINAL.pdf, §03): Space Grotesk for
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <img src="/brand/lockup-ink.svg" alt="Flagship Growth" style={{ height: 28 }} />
             </a>
           </header>
+          <ImpersonationBanner />
           {children}
         </body>
       </html>

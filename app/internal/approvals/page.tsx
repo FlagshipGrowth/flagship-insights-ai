@@ -1,15 +1,14 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getUserContext } from "@/lib/user-context";
+import { getUserContext, isOwner } from "@/lib/user-context";
 import { getPendingUsers, approveUser } from "@/lib/user-approvals";
 import { Badge } from "@/components/Badge";
 
 async function approveUserAction(formData: FormData) {
   "use server";
   const ctx = await getUserContext();
-  // Deliberately internal_admin only, not isInternalStaff (which also allows account_manager) —
-  // sign-up approval is an admin-only action.
-  if (!ctx || ctx.role !== "internal_admin") return;
+  // Owner-only — sign-up approval is an Admin View action, not just "any internal_admin".
+  if (!ctx || !isOwner(ctx)) return;
 
   const userId = formData.get("userId") as string;
   if (!userId) return;
@@ -21,7 +20,7 @@ async function approveUserAction(formData: FormData) {
 export default async function ApprovalsPage() {
   const ctx = await getUserContext();
   if (!ctx) redirect("/onboarding");
-  if (ctx.role !== "internal_admin") redirect("/internal");
+  if (!isOwner(ctx)) redirect("/internal");
 
   const pending = await getPendingUsers();
 
