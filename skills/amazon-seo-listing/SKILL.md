@@ -7,6 +7,8 @@ description: Generates Amazon-compliant Title, Item Highlights, Bullet Points, P
 
 Generates a compliant Amazon listing for one product, following Flagship Growth's SEO SOP, and delivers it as a row in that brand's shared Google Sheet, with a short Slack notification for account-manager review before it goes to the client. Do not skip the compliance self-check at the end — a rule violation here risks the client's listing getting suppressed or AI-rewritten by Amazon.
 
+**A request is not complete until a real Google Sheet has actually been created or updated via the Google Drive connector.** A Slack reply containing the draft text is not a substitute for this, even if it looks complete — it is a status update at best. If you finish your research and drafting and are about to reply in Slack, stop and check: did I actually call a Drive tool that created or edited a spreadsheet? If not, do that now, before replying. This has been missed before — treat it as the step most likely to get skipped, not an optional nice-to-have.
+
 ## Required inputs
 
 Before starting, confirm you have all three. If any are missing, ask for them instead of guessing:
@@ -27,26 +29,29 @@ If instead someone genuinely does ask you directly (not via a `/seo-listing` mes
 - **Helium10 MCP** — reverse-ASIN keyword lookup and listing lookup for already-live ASINs (`get_keywords_by_asin`, `retrieve_listing_by_asin`, `get_listing_details`), used to seed `currentListing` and cross-check keyword data against Data Dive's.
 - **Google Drive connector** (covers Sheets) — where the finished draft actually lives (Section 9). Find or create the brand's sheet, add/rename a tab, and write the content into it.
 
-**Spend control:** `create_niche_dive` spends Dive tokens and `generate_listing_copy` spends an AI Copywriter prompt from `get_quota`'s monthly allowance — both are irreversible and **must not be retried** on error/timeout (poll `get_dive_status` / `get_listing_copy_generation_status` instead, per their own tool descriptions). A `/seo-listing` request is itself the authorization to spend — **do not stop and ask permission before calling `create_niche_dive` or `generate_listing_copy`; just proceed.** Still be efficient about it, though:
+**Spend control:** `create_niche_dive` spends Dive tokens and `generate_listing_copy` spends an AI Copywriter prompt from `get_quota`'s monthly allowance — both are irreversible and **must not be retried** on error/timeout (poll `get_dive_status` / `get_listing_copy_generation_status` instead, per their own tool descriptions). **A `/seo-listing` request is itself the authorization to spend, every single time. Never stop and ask permission before calling `create_niche_dive`, `redive_niche`, or `generate_listing_copy` — just do it.** This isn't a one-time-only allowance — it applies to every request, not just the first.
 1. Call `get_quota` first. If a feature's remaining headroom is genuinely low (say, under 10% of capacity left), say so when you hand off the result, but still complete the request unless it's fully exhausted (0 remaining) — in that case, stop and explain you're out of quota rather than erroring out partway through.
-2. Call `list_niches` with `searchAsin` (if you have an ASIN) or `searchText` (the product's core keyword) first — this account already has hundreds of niches dived; reuse an existing one instead of spending a new dive token if a close match exists. If the existing niche's `latestResearchDate` looks stale relative to the request, `redive_niche` (`mode: same_competitors` to refresh as-is) is an option too.
+2. **Default to a fresh `create_niche_dive` for every genuinely distinct product** — don't go hunting through `list_niches` for something that might loosely match; this account has hundreds of niches from unrelated past work, and reusing a mismatched one produces worse research than just diving fresh. The one exception is the color/variant-only case described in Section 1 and Section 6 — that's a real "skip the dive" case, not a general habit.
 3. Never retry `create_niche_dive`, `redive_niche`, or `generate_listing_copy` on an error or timeout — poll their status tool instead. If a seed ASIN is rejected (e.g. "too weak to find competitors"), that's fine to correct and retry *with a different ASIN* — that's a new, deliberate call, not a blind retry of the same one.
 
 ## Procedure
 
-### 1. Familiarize yourself with the product and brand — go beyond the one linked page
+### 1. Familiarize yourself with the product and brand — actually crawl the site, starting from the page you were given
 
-The single product page link is a starting point, not the whole job. Before drafting anything:
-- Do a web/Google search on the brand name itself — how does it describe itself, what does it sell, what's it known for.
-- Read the brand's **other website pages** too, not just the linked product: About/Story page, other products in the same line, any FAQ or sizing/materials page. The goal is to actually understand the brand and this product's real construction/positioning, not to extract one page's marketing copy in isolation.
-- From all of this, identify: unique selling propositions (USPs), brand voice and tone, and — critically — **the actual style/category terms the brand itself uses for this product** (e.g. "fitted," "structured," "snapback," "dad hat," "trucker" are all different, non-interchangeable cap styles; get this from the brand's own words, not from a competitor's listing).
+**Start at the product URL in the request. Open it for real.** Then, from the links on that actual page, navigate to at least 2–3 more: the main nav/header (About, Our Story), any other product in the same line, and a FAQ/materials/sizing page if one's linked. This is a real, sequential crawl — open a page, read it, follow a link from it — not a single Google search standing in for all of it. A generic web search can supplement this (brand reputation, press, Shark-Tank-style background), but it never replaces actually opening the brand's own pages; a search result's summary of a page is not the same as reading the page.
 
-**Cross-check this against whatever Data Dive's `generate_listing_copy` (step 4) comes back with.** Its draft is built from the *niche's* competitors, some of whom may sell a different sub-style than this exact product — it will confidently reuse whatever category language is common in that niche even if it doesn't match this specific product. Concretely: if the brand's own material describes the product as "structured"/"fitted" and Data Dive's draft calls it a "dad hat" (a distinctly *unstructured*, curved-brim style), that's a real inaccuracy to catch and fix here, not a stylistic nitpick — don't let a generated draft's category framing override what the brand's own pages actually say the product is.
+**If a page fetch fails or is blocked** (a network/access restriction, not just a 404), say so explicitly in your reply rather than silently falling back to guessing from search snippets or Data Dive's own generated copy — an unreachable site is a real gap to flag, not something to paper over.
+
+From what you actually read, identify: unique selling propositions (USPs), brand voice and tone, and — critically — **the actual style/category terms the brand itself uses for this product** (e.g. "fitted," "structured," "snapback," "dad hat," "trucker" are all different, non-interchangeable cap styles; get this from the brand's own words, not from a competitor's listing). This is exactly what answers questions like "is this actually a fitted cap or a dad hat" — a question you should be able to answer from the brand's own pages, not from inference.
+
+**Cross-check this against whatever Data Dive's `generate_listing_copy` (step 4) comes back with.** Its draft is built from the *niche's* competitors, some of whom may sell a different sub-style than this exact product — it will confidently reuse whatever category language is common in that niche even if it doesn't match this specific product. Concretely: if the brand's own material describes the product as "structured"/"fitted" and Data Dive's draft calls it a "dad hat" (a distinctly *unstructured*, curved-brim style), that's a real inaccuracy to catch and fix here, not a stylistic nitpick — don't let a generated draft's category framing override what you actually read on the brand's own pages.
+
+**Exception — color/variant-only requests:** if this request is for a product you've already fully researched and drafted for this brand (same product, same construction, only the color/variant differs — check the brand's Google Sheet for an existing tab on the same base product first), you don't need to re-crawl the site or redo steps 2–5 from scratch. Skip straight to reusing that research and drafting (see the note in Section 6) — just make sure the new color is actually reflected in Title/Highlights/Backend Search Terms, and still pull a fresh Ranking Juice number (Section 3) for this specific SKU before delivering.
 
 ### 2. Get or create the niche
-- Search first: `list_niches` with `searchAsin` (competitor/own ASIN, if known) or `searchText` (product's core keyword).
-- If nothing close exists, pick a strong seed ASIN (the product's own ASIN if live, otherwise a representative top competitor found via Helium10) and run `create_niche_dive` (marketplace, asin, numberOfCompetitors ≥ 2 — more competitors gives a deeper read but costs more).
-- Poll `get_dive_status` with the returned `diveId` until `success`, then use its `nicheId` for everything below.
+- **Color/variant-only request** (Section 1 exception): reuse the `nicheId` from the earlier request for the same base product — no new dive. Skip to Section 6's shortcut.
+- **Otherwise, dive fresh — this is the default, not a fallback.** Pick a strong seed ASIN (the product's own ASIN if live, otherwise a representative top competitor found via Helium10) and run `create_niche_dive` (marketplace, asin, numberOfCompetitors ≥ 2 — more competitors gives a deeper read but costs more).
+- Poll `get_dive_status` with the returned `diveId` until `success`, then use its `nicheId` for everything below. If the seed ASIN is rejected as too weak, pick a different one and dive again (a new, deliberate call — not a retry).
 
 ### 3. Research the niche
 Pull all four for the niche:
@@ -75,6 +80,11 @@ Poll `get_listing_copy_generation_status` (free, no extra cost) until `complete`
 ### 6. Build the final output
 
 Starting from Data Dive's draft (step 4), reconcile it against the working keyword list (step 3) and finalize every field below, in this order: Item Name → Item Highlights → Bullet Points → Product Description → Backend Search Terms → Alt Text. De-duplicate keywords across every field; nothing needs to be indexed twice, and Backend Search Terms specifically exists to catch words *not* already used elsewhere.
+
+**Color/variant-only shortcut:** if Section 1/2 identified this as just a new color of an already-drafted product, don't rebuild everything from scratch — take the existing Title A/B, Highlights, Bullets, Description, and Backend Search Terms from that earlier tab and:
+- Swap the color token wherever it appears (Title, Highlights, and add it to Backend Search Terms if it isn't implicitly covered — a color word is exactly the kind of new, non-duplicated term that field exists for).
+- Leave everything else as-is; don't reopen the full compliance pass on content that didn't change, just re-check whatever you actually edited.
+- **Still call `get_ranking_juice` for this specific SKU and report a real number** — never skip or reuse the old color's Ranking Juice figure, and never omit it. This applies regardless of which path you took to get here; Ranking Juice is a required part of every single delivery, full stop, not just requests that ran the full pipeline.
 
 #### A. Item Name (Title) — hard limit 75 characters including spaces — always produce TWO
 
@@ -197,7 +207,9 @@ If you're not fully certain whether a candidate word or phrase is compliant, lea
 
 ## 9. Deliver: write it into the brand's Google Sheet, then post the link in Slack
 
-**The Google Sheet is the actual deliverable — the Slack reply is just a short pointer to it, not a dump of the full content.**
+**The Google Sheet is the actual deliverable — the Slack reply is just a short pointer to it, not a dump of the full content.** Before you post anything in Slack, confirm both of these actually happened — if either didn't, go do it now rather than delivering an incomplete result:
+- A real spreadsheet was created or updated via the Google Drive connector (not just planned or described).
+- A real Ranking Juice number was pulled for this SKU and is going in the sheet — every request, including color/variant-only ones (Section 6).
 
 1. **Find or create the brand's sheet.** Search Drive for a spreadsheet titled exactly `SEO-{BrandName}` (e.g. `SEO-Noggin Boss`). If it exists, use it — every request for this brand goes into the same spreadsheet, as new tabs, not a new file each time. Only create a new one (titled exactly `SEO-{BrandName}`) if none exists yet.
 2. **Add a tab named exactly by SKU.** If there's no SKU yet, use the ASIN; if there's neither (a genuinely new, unlaunched product), use a short slug of the product name — but note in your Slack reply that the tab should be renamed once a SKU is assigned. **If you duplicate an existing tab as a starting template, rename it immediately** — never leave a tab named "Copy of X" or "Copy of Copy of X." Check the sheet's existing tab names first; if one already matches this SKU, update that tab rather than creating a duplicate.
