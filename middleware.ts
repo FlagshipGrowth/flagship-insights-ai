@@ -5,6 +5,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/api/webhooks(.*)",
   "/api/slack(.*)", // verified via its own Slack signature check, not Clerk — see lib/slack.ts
+  "/api/clients/(.*)/logo", // meant to be embeddable as a plain <img src> with no auth
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

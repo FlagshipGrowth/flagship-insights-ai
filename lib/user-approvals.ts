@@ -1,4 +1,6 @@
 import { getDb } from "./db";
+import { seedOnboardingTasks } from "./onboarding-tasks";
+import { postSlackMessage } from "./slack";
 
 export interface PendingUser {
   id: string;
@@ -35,7 +37,32 @@ export async function getPendingUsersCount(): Promise<number> {
   return Number(rows[0]?.count ?? 0);
 }
 
+/** Approving is also the onboarding trigger: seedOnboardingTasks used to fire immediately at
+ * organization.created, before any approval — moved here so the checklist only appears once an
+ * owner has actually let the client in. */
 export async function approveUser(userId: string): Promise<void> {
   const sql = getDb();
-  await sql`update users set status = 'approved' where id = ${userId} and status = 'pending'`;
+  const rows = await sql`
+    update users set status = 'approved' where id = ${userId} and status = 'pending'
+    returning client_id, email
+  `;
+  if (rows.length === 0) return; // wasn't pending (already approved, or bad id) — nothing to do
+  const clientId = rows[0].client_id;
+  if (!clientId) return; // shouldn't happen for a client sign-up, but nothing to seed either way
+
+  const brands = await sql`select id from brands where client_id = ${clientId}`;
+  for (const b of brands) {
+    // Guard against double-seeding if this ever re-fires, or a brand was already backfilled.
+    const hasTasks = await sql`select 1 from tasks where brand_id = ${b.id} limit 1`;
+    if (hasTasks.length === 0) await seedOnboardingTasks(b.id);
+  }
+
+  if (process.env.SLACK_ALERTS_CHANNEL_ID) {
+    const client = await sql`select name from clients where id = ${clientId}`;
+    // Best-effort — a Slack outage should never block the approval itself.
+    await postSlackMessage({
+      channel: process.env.SLACK_ALERTS_CHANNEL_ID,
+      text: `✅ New client approved: ${client[0]?.name ?? "unknown"} (${rows[0].email}) — onboarding checklist seeded.`,
+    }).catch((err) => console.error(`approveUser Slack alert failed: ${err}`));
+  }
 }

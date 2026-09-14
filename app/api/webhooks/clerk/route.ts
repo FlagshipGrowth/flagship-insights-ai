@@ -1,7 +1,7 @@
 import { Webhook } from "svix";
 import { headers } from "next/headers";
 import { getDb } from "@/lib/db";
-import { seedOnboardingTasks } from "@/lib/onboarding-tasks";
+import { provisionClientOrg } from "@/lib/clients";
 import { parseEmailList } from "@/lib/env-lists";
 
 // INTERNAL_STAFF_EMAILS / ACCOUNT_MANAGER_EMAILS are a cold-bootstrap fallback for staff who
@@ -74,35 +74,14 @@ export async function POST(req: Request) {
     }
 
     case "organization.created": {
-      // Staff often pre-seed a client's brand(s) (see migration 0009) before that client ever
-      // signs up. Link this new org to a pre-seeded, not-yet-linked client with the same name
-      // instead of creating a duplicate — only fall back to inserting fresh if there's no match.
-      const preseeded = await sql`
-        select id from clients where lower(name) = lower(${event.data.name}) and clerk_org_id is null limit 1
-      `;
-      if (preseeded.length > 0) {
-        await sql`update clients set clerk_org_id = ${event.data.id} where id = ${preseeded[0].id}`;
-        break;
-      }
-
-      await sql`
-        insert into clients (name, clerk_org_id)
-        values (${event.data.name}, ${event.data.id})
-        on conflict (clerk_org_id) do nothing
-      `;
-      const client = await sql`select id from clients where clerk_org_id = ${event.data.id}`;
-      if (client.length > 0) {
-        // One default brand per new client org — multi-brand-per-client management is a
-        // fast-follow, not built yet (SPEC.md §4's `brands` table supports it already).
-        const newBrand = await sql`
-          insert into brands (client_id, name, channels_enabled)
-          values (${client[0].id}, ${event.data.name}, '{}')
-          returning id
-        `;
-        if (newBrand.length > 0) {
-          await seedOnboardingTasks(newBrand[0].id);
-        }
-      }
+      // Usually already provisioned by app/onboarding/page.tsx's server action (which creates
+      // the org directly via Clerk's Backend SDK so it can attach a logo in the same request) —
+      // this webhook still fires afterward, so provisionClientOrg is idempotent on both the
+      // client and brand rows and this is a safe no-op in that case. It's the ONLY path taken
+      // for an org created outside that flow (e.g. directly from the Clerk dashboard).
+      // Onboarding-checklist seeding happens on approval (lib/user-approvals.ts), not here — a
+      // brand can exist before its client is approved.
+      await provisionClientOrg({ name: event.data.name, clerkOrgId: event.data.id });
       break;
     }
 
