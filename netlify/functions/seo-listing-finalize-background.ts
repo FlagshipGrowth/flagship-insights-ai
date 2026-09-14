@@ -49,8 +49,14 @@ export default async (req: Request) => {
   // has to type anything to Claude Tag directly. CLAUDE_TAG_SLACK_USER_ID is set once Claude Tag
   // is invited to the workspace (see CLAUDE.md); without it this still posts, just without the
   // mention, so Claude Tag won't pick it up automatically until that's configured.
+  //
+  // Posted with SLACK_USER_TOKEN, not the bot token: confirmed 2026-09-14 that Claude Tag only
+  // reacts to @-mentions in messages with a real user_id and no bot_id — a bot-posted mention got
+  // zero response. Using the user token makes this a genuine human-authored message (it'll show
+  // as posted by whoever authorized that token), so the "(via Flagship AI)" tag below is there so
+  // that's not confusing to anyone reading the channel.
   const claudeMention = process.env.CLAUDE_TAG_SLACK_USER_ID ? `<@${process.env.CLAUDE_TAG_SLACK_USER_ID}> ` : "";
-  const text = `📋 *New SEO listing request* for *${brandName}* (task ${taskId}), requested by <@${userId}>
+  const text = `📋 *New SEO listing request* (via Flagship AI) for *${brandName}* (task ${taskId}), requested by <@${userId}>
 
 *Product:* ${productName}
 *SKU:* ${sku ?? "not assigned yet"}
@@ -61,15 +67,16 @@ export default async (req: Request) => {
 ${claudeMention}please run the amazon-seo-listing skill for this product and reply in this thread with the draft (Title A/B, Item Highlights, Bullets, Backend Search Terms, Ranking Juice) — task ${taskId}.`;
 
   try {
-    const result = await postSlackMessage({ channel: channelId, text });
+    const result = await postSlackMessage({ channel: channelId, text, token: process.env.SLACK_USER_TOKEN });
     if (taskId) {
       await sql`update tasks set slack_thread_ts = ${result.ts} where id = ${taskId}`;
     }
   } catch (err) {
     // Same fallback as everywhere else in this integration — post the failure where a human will
-    // actually see it rather than losing it silently. No thread_ts to save in this path, so
-    // seo-listing-capture-reply-background.ts won't have anything to match a reply against; the
-    // task itself (and this alert) are still the record that the request happened.
+    // actually see it rather than losing it silently. Posts as the bot (not the user token) since
+    // it's just an ops alert, not something that needs Claude Tag's attention. No thread_ts to
+    // save in this path, so seo-listing-capture-reply-background.ts won't have anything to match
+    // a reply against; the task itself (and this alert) are still the record the request happened.
     await postSlackMessageOrFallback({ channel: channelId, text });
   }
 

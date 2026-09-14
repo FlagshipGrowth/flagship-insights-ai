@@ -3,6 +3,13 @@ const SLACK_API = "https://slack.com/api";
 /**
  * ── Env vars (set in Netlify) ─────────────────────────────────────────────
  * SLACK_BOT_TOKEN         — "xoxb-..." from the Slack app's OAuth & Permissions page
+ * SLACK_USER_TOKEN        — "xoxp-..." from the same page, once a User Token Scope (chat:write)
+ *                            is added and the app reinstalled. Posting with this instead of the
+ *                            bot token makes the message a genuine human-authored Slack message
+ *                            (a real user_id, no bot_id) — needed for seo-listing-finalize-
+ *                            background.ts's Claude Tag trigger message specifically: Claude Tag
+ *                            only reacts to @-mentions in human-authored messages, never a bot's
+ *                            (confirmed 2026-09-14 — a bot-posted @-mention got zero response).
  * SLACK_ALERTS_CHANNEL_ID — channel ID this posts insight alerts into (e.g. "C0123ABC")
  * ───────────────────────────────────────────────────────────────────────────
  */
@@ -12,14 +19,17 @@ interface SlackMessageOptions {
   text: string;
   blocks?: unknown[];
   thread_ts?: string;
+  /** Defaults to SLACK_BOT_TOKEN. Pass SLACK_USER_TOKEN to post as a real human instead of the
+   * bot — see this file's env-var comment above for why that matters for Claude Tag. */
+  token?: string;
 }
 
 /** Post a message to Slack. Throws if the Slack API reports an error. */
-export async function postSlackMessage({ channel, text, blocks, thread_ts }: SlackMessageOptions) {
+export async function postSlackMessage({ channel, text, blocks, thread_ts, token }: SlackMessageOptions) {
   const res = await fetch(`${SLACK_API}/chat.postMessage`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}`,
+      Authorization: `Bearer ${token ?? process.env.SLACK_BOT_TOKEN}`,
       "Content-Type": "application/json; charset=utf-8",
     },
     body: JSON.stringify({ channel, text, blocks, thread_ts }),
