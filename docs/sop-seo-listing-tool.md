@@ -24,13 +24,14 @@ Any time a product needs new/optimized Amazon listing copy (title, bullets, desc
 8. **Track status** on the dashboard — the task flips to "In Progress" automatically once Claude Tag replies; mark it **Done** once the listing is live.
 
 ## Bulk upload (many SKUs at once)
-For a brand with a big batch of products (e.g. 50 SKUs for a new catalog launch), don't run `/seo-listing` one at a time:
-1. Get to the bulk upload page either way:
-   - In Slack, run `/seo-listing bulk` — it replies with a direct link.
-   - Or on the brand's dashboard page, open **Bulk SEO listing upload** (under Tools).
-2. Download the CSV template, fill in one row per product (Product Name, SKU, Website URL, Priority).
-3. Re-upload it. Each row becomes its own tracked task and its own Slack thread — Claude Tag researches and drafts each product individually (needed for accuracy; there's no shortcut for genuinely different products, though same-product color variants are auto-detected and sped up — see below).
-4. Each task's Slack reply is intentionally just a one-line "complete" marker, not a draft dump — **review the actual content in the `SEO-{BrandName}` Google Sheet**, not in Slack.
+For a brand with a big batch of products (e.g. 50 SKUs for a new catalog launch), don't run `/seo-listing` one product at a time — it's the same command, same modal:
+1. **Run `/seo-listing`** as usual.
+2. Click **"📥 Download bulk CSV template"** at the top of the modal, fill in one row per product (Product Name, SKU, Website URL, Priority).
+3. Attach the completed CSV using the file upload field right below the download button, then hit **Request** — you can leave the single-product fields (Product name, SKU, etc.) blank when uploading a file, they're only required if you're *not* attaching a CSV.
+4. Each row becomes its own tracked task and its own Slack thread — Claude Tag researches and drafts each product individually (needed for accuracy; there's no shortcut for genuinely different products, though same-product color variants are auto-detected and sped up — see below).
+5. Each task's Slack reply is intentionally just a one-line "complete" marker, not a draft dump — **review the actual content in the `SEO-{BrandName}` Google Sheet**, not in Slack.
+
+Alternative: `/seo-listing bulk` replies with a direct link to the same upload on the dashboard (under a brand's **Tools → Bulk SEO listing upload**), if you'd rather review the batch there before/while it runs.
 
 ## Notes
 - Every task's Slack reply (single or bulk) is a short "complete" pointer to the sheet, not the draft itself — this keeps the channel readable even when many requests land close together.

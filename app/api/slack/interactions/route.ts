@@ -1,5 +1,6 @@
 import { verifySlackSignature, openSlackView } from "@/lib/slack";
 import { TEAMS } from "@/lib/teams";
+import { parseSeoListingBulkCsv } from "@/lib/seo-listing-bulk";
 
 export const runtime = "nodejs"; // needs Node's crypto — don't switch this to "edge"
 
@@ -168,10 +169,62 @@ export async function POST(req: Request) {
   if (payload.type === "view_submission" && payload.view?.callback_id === "seo_listing_modal") {
     const metadata = JSON.parse(payload.view.private_metadata ?? "{}");
     const values = payload.view.state?.values ?? {};
+    const bulkFile = values.bulk_file_block?.bulk_file_input?.files?.[0];
+
+    // Bulk path: a CSV was attached via the modal's file_input block — skip the single-product
+    // fields entirely (they were marked optional precisely so this doesn't block on them) and
+    // hand the whole batch to the same background function the dashboard bulk-upload form uses.
+    if (bulkFile) {
+      const fileRes = await fetch(bulkFile.url_private_download, {
+        headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
+      });
+      if (!fileRes.ok) {
+        // Most likely cause: the bot token is missing the `files:read` scope — see the comment
+        // in app/api/slack/commands/route.ts above the modal definition.
+        return Response.json({
+          response_action: "errors",
+          errors: { bulk_file_block: "Couldn't download that file from Slack — try again, or ask an admin to check the bot's files:read scope." },
+        });
+      }
+      const { rows } = parseSeoListingBulkCsv(await fileRes.text());
+      if (rows.length === 0) {
+        return Response.json({
+          response_action: "errors",
+          errors: { bulk_file_block: "No valid rows found — check Product Name and Website URL are filled in for every row." },
+        });
+      }
+
+      await fetch(new URL("/.netlify/functions/seo-listing-bulk-background", req.url), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          brandId: metadata.brandId,
+          brandName: metadata.brandName,
+          channelId: metadata.channelId,
+          requestedByName: "Slack bulk upload",
+          rows,
+        }),
+      });
+
+      // Rows missing Product Name / a valid URL are silently dropped by parseSeoListingBulkCsv
+      // rather than blocking the whole submission — seo-listing-bulk-background only receives
+      // the valid ones. (The dashboard upload route surfaces a skipped count via query params
+      // after its redirect; there's no equivalent place to show one here after a modal closes.)
+      return Response.json({ response_action: "clear" });
+    }
+
+    // Single-product path.
     const productName = values.product_name_block?.product_name_input?.value?.trim();
     const sku = values.sku_block?.sku_input?.value?.trim() || null;
     const productUrl = values.product_url_block?.product_url_input?.value?.trim();
     const priority = values.priority_block?.priority_input?.selected_option?.value || null;
+
+    if (!productName || !productUrl) {
+      const errors: Record<string, string> = {};
+      if (!productName) errors.product_name_block = "Required, unless you upload a bulk CSV above.";
+      if (!productUrl) errors.product_url_block = "Required, unless you upload a bulk CSV above.";
+      return Response.json({ response_action: "errors", errors });
+    }
 
     await fetch(new URL("/.netlify/functions/seo-listing-finalize-background", req.url), {
       method: "POST",

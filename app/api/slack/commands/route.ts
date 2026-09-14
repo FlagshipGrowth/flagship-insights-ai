@@ -25,16 +25,23 @@ const PRIORITY_OPTIONS = [
  *   Power-user shortcut: `/create-task <title> | client:<brand name> | priority:<low|med|high>`
  *   is still parsed deterministically (no LLM call) if you'd rather be explicit.
  *
- * `/seo-listing` — opens a modal (Product name / SKU / website URL / priority) for the Amazon
- *   SEO listing agent. Must be run in a brand's mapped Slack channel (no client: escape hatch —
- *   unlike /create-task this needs a real brandId before the modal can even open). Submitting it
- *   creates a tracked task (see seo-listing-finalize-background.ts) and @-mentions Claude Tag
- *   with everything it needs to run the amazon-seo-listing skill and reply in that same thread —
- *   nobody has to talk to Claude Tag directly, Flagship AI does that part.
+ * `/seo-listing` — opens a modal for the Amazon SEO listing agent. Must be run in a brand's
+ *   mapped Slack channel (no client: escape hatch — unlike /create-task this needs a real
+ *   brandId before the modal can even open). The same modal covers both cases:
+ *    - One product: fill in Product name / SKU / website URL / priority. Submitting creates a
+ *      tracked task (see seo-listing-finalize-background.ts) and @-mentions Claude Tag with
+ *      everything it needs to run the amazon-seo-listing skill and reply in that same thread.
+ *    - Many products at once: use the "Download bulk CSV template" button, fill in one row per
+ *      product, then attach the completed CSV via the file upload field below it — this skips
+ *      the single-product fields and instead creates one task + one Slack thread per row (see
+ *      seo-listing-bulk-background.ts), via the file_input Block Kit element (Slack modals do
+ *      support file uploads, contrary to what the interactions handler used to assume — the
+ *      uploaded file arrives in view_submission as a Slack-hosted file we download with the bot
+ *      token, needing the `files:read` bot scope).
  *
- * `/seo-listing bulk` — for many SKUs at once (a CSV upload, not a modal — Slack modals don't
- *   support file inputs), this replies ephemeral with a direct link to that brand's Bulk SEO
- *   listing upload page on the dashboard instead of opening the single-product modal.
+ * `/seo-listing bulk` — a shortcut that skips the modal and replies ephemeral with a direct link
+ *   to the same brand's Bulk SEO listing upload page on the dashboard, for anyone who'd rather
+ *   review the queued batch there before/while it runs.
  */
 const APP_URL = process.env.URL || "https://flagship-insights-ai.netlify.app";
 export async function POST(req: Request) {
@@ -95,17 +102,34 @@ export async function POST(req: Request) {
         blocks: [
           { type: "section", text: { type: "mrkdwn", text: `For *${brand.name}*` } },
           {
-            type: "context",
+            type: "actions",
+            block_id: "bulk_template_block",
             elements: [
               {
-                type: "mrkdwn",
-                text: `Got many SKUs to run at once? Use <${APP_URL}/internal/brand/${brand.id}/seo-bulk|the bulk upload page> instead (or run \`/seo-listing bulk\`).`,
+                type: "button",
+                action_id: "download_bulk_template",
+                text: { type: "plain_text", text: "📥 Download bulk CSV template" },
+                url: `${APP_URL}/api/seo-listing/bulk-template`,
               },
             ],
           },
           {
             type: "input",
+            block_id: "bulk_file_block",
+            optional: true,
+            label: { type: "plain_text", text: "Many SKUs? Upload a completed bulk CSV (skips the fields below)" },
+            element: {
+              type: "file_input",
+              action_id: "bulk_file_input",
+              filetypes: ["csv"],
+              max_files: 1,
+            },
+          },
+          { type: "divider" },
+          {
+            type: "input",
             block_id: "product_name_block",
+            optional: true,
             label: { type: "plain_text", text: "Product name" },
             element: { type: "plain_text_input", action_id: "product_name_input" },
           },
@@ -123,12 +147,14 @@ export async function POST(req: Request) {
           {
             type: "input",
             block_id: "product_url_block",
+            optional: true,
             label: { type: "plain_text", text: "Website product page URL" },
             element: { type: "plain_text_input", action_id: "product_url_input" },
           },
           {
             type: "input",
             block_id: "priority_block",
+            optional: true,
             label: { type: "plain_text", text: "Priority" },
             element: {
               type: "static_select",

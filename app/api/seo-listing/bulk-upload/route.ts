@@ -1,27 +1,7 @@
 import { getUserContext, isInternalStaff, canStaffAccessBrand, deriveNameFromEmail } from "@/lib/user-context";
 import { getBrandName } from "@/lib/seo";
 import { getBrandSlackChannelId } from "@/lib/brands";
-import { csvToRecords } from "@/lib/csv";
-
-const PRIORITY_VALUES = ["low", "med", "high"];
-// Accept a few header spellings people are likely to type/paste, but the template
-// (bulk-template/route.ts) always uses the first of each.
-const HEADER_ALIASES: Record<string, string> = {
-  "product name": "productName",
-  "product": "productName",
-  sku: "sku",
-  "website url": "productUrl",
-  "website product page url": "productUrl",
-  url: "productUrl",
-  priority: "priority",
-};
-
-interface ParsedRow {
-  productName: string;
-  sku: string | null;
-  productUrl: string;
-  priority: string | null;
-}
+import { parseSeoListingBulkCsv } from "@/lib/seo-listing-bulk";
 
 /** Handles the "Bulk SEO upload" form on app/internal/brand/[brandId]/seo-bulk — parses and
  * validates the CSV synchronously (fast, no external calls), then hands the heavy lifting (DB
@@ -52,32 +32,7 @@ export async function POST(req: Request) {
   }
 
   const text = await file.text();
-  const records = csvToRecords(text);
-  if (records.length === 0) {
-    return redirectWithMessage(req, brandId, "CSV had no data rows.");
-  }
-
-  const rows: ParsedRow[] = [];
-  let skipped = 0;
-  for (const record of records) {
-    const normalized: Record<string, string> = {};
-    for (const [key, value] of Object.entries(record)) {
-      const mapped = HEADER_ALIASES[key.trim().toLowerCase()];
-      if (mapped) normalized[mapped] = value;
-    }
-
-    const productName = normalized.productName?.trim();
-    const productUrl = normalized.productUrl?.trim();
-    const sku = normalized.sku?.trim() || null;
-    const rawPriority = normalized.priority?.trim().toLowerCase() || null;
-
-    if (!productName || !productUrl || !/^https?:\/\//i.test(productUrl)) {
-      skipped++;
-      continue;
-    }
-    const priority = rawPriority && PRIORITY_VALUES.includes(rawPriority) ? rawPriority : null;
-    rows.push({ productName, sku, productUrl, priority });
-  }
+  const { rows, skipped } = parseSeoListingBulkCsv(text);
 
   if (rows.length === 0) {
     return redirectWithMessage(req, brandId, "No valid rows found — check Product Name and Website URL are filled in for every row.");
