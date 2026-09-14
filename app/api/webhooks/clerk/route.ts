@@ -52,10 +52,16 @@ export async function POST(req: Request) {
           ? "internal_admin"
           : null;
       if (email && staffRole) {
+        // Conflict target is email, not clerk_user_id — same reasoning as the
+        // organizationMembership handler below: an account manager can be pre-provisioned (e.g.
+        // assigned to a brand, /internal/brands/new's account-manager picker) before they've ever
+        // signed in, with clerk_user_id left null. Conflicting on clerk_user_id would miss that
+        // row and attempt a second INSERT, failing on the separate `users.email` unique
+        // constraint the moment they actually sign up.
         await sql`
           insert into users (client_id, role, email, clerk_user_id)
           values (null, ${staffRole}, ${email}, ${event.data.id})
-          on conflict (clerk_user_id) do nothing
+          on conflict (email) do update set clerk_user_id = excluded.clerk_user_id
         `;
       }
       break;
