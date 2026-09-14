@@ -580,6 +580,7 @@ export default async function BrandHubPage({
         <div className="card" style={{ maxWidth: 640, padding: 0, overflow: "hidden" }}>
           {[
             { label: "Product optimizations (SEO)", href: `/internal/seo/${brandId}`, available: true },
+            { label: "Bulk SEO listing upload", href: `/internal/brand/${brandId}/seo-bulk`, available: true },
             { label: "Inventory", href: `/internal/brand/${brandId}/inventory`, available: true },
             { label: "Catalog", href: `/internal/brand/${brandId}/catalog`, available: true },
             { label: "Item-level margin calculator", href: `/internal/brand/${brandId}/margin-calculator`, available: true },
