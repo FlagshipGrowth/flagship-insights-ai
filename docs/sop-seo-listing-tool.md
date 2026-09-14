@@ -25,7 +25,9 @@ Any time a product needs new/optimized Amazon listing copy (title, bullets, desc
 
 ## Bulk upload (many SKUs at once)
 For a brand with a big batch of products (e.g. 50 SKUs for a new catalog launch), don't run `/seo-listing` one at a time:
-1. On the brand's dashboard page, open **Bulk SEO listing upload** (under Tools).
+1. Get to the bulk upload page either way:
+   - In Slack, run `/seo-listing bulk` — it replies with a direct link.
+   - Or on the brand's dashboard page, open **Bulk SEO listing upload** (under Tools).
 2. Download the CSV template, fill in one row per product (Product Name, SKU, Website URL, Priority).
 3. Re-upload it. Each row becomes its own tracked task and its own Slack thread — Claude Tag researches and drafts each product individually (needed for accuracy; there's no shortcut for genuinely different products, though same-product color variants are auto-detected and sped up — see below).
 4. Each task's Slack reply is intentionally just a one-line "complete" marker, not a draft dump — **review the actual content in the `SEO-{BrandName}` Google Sheet**, not in Slack.

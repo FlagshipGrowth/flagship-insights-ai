@@ -31,7 +31,12 @@ const PRIORITY_OPTIONS = [
  *   creates a tracked task (see seo-listing-finalize-background.ts) and @-mentions Claude Tag
  *   with everything it needs to run the amazon-seo-listing skill and reply in that same thread —
  *   nobody has to talk to Claude Tag directly, Flagship AI does that part.
+ *
+ * `/seo-listing bulk` — for many SKUs at once (a CSV upload, not a modal — Slack modals don't
+ *   support file inputs), this replies ephemeral with a direct link to that brand's Bulk SEO
+ *   listing upload page on the dashboard instead of opening the single-product modal.
  */
+const APP_URL = process.env.URL || "https://flagship-insights-ai.netlify.app";
 export async function POST(req: Request) {
   // Must read as raw text FIRST — verification depends on the exact raw bytes.
   const rawBody = await req.text();
@@ -71,6 +76,13 @@ export async function POST(req: Request) {
       });
     }
 
+    if (text.toLowerCase() === "bulk") {
+      return Response.json({
+        response_type: "ephemeral",
+        text: `📋 For many SKUs at once, use the bulk upload page: ${APP_URL}/internal/brand/${brand.id}/seo-bulk — download the CSV template there, fill in one row per product, and re-upload.`,
+      });
+    }
+
     await openSlackView({
       trigger_id: triggerId,
       view: {
@@ -82,6 +94,15 @@ export async function POST(req: Request) {
         close: { type: "plain_text", text: "Cancel" },
         blocks: [
           { type: "section", text: { type: "mrkdwn", text: `For *${brand.name}*` } },
+          {
+            type: "context",
+            elements: [
+              {
+                type: "mrkdwn",
+                text: `Got many SKUs to run at once? Use <${APP_URL}/internal/brand/${brand.id}/seo-bulk|the bulk upload page> instead (or run \`/seo-listing bulk\`).`,
+              },
+            ],
+          },
           {
             type: "input",
             block_id: "product_name_block",
