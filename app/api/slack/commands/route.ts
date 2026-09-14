@@ -34,16 +34,97 @@ const PRIORITY_OPTIONS = [
  *    - Many products at once: use the "Download bulk CSV template" button, fill in one row per
  *      product, then attach the completed CSV via the file upload field below it — this skips
  *      the single-product fields and instead creates one task + one Slack thread per row (see
- *      seo-listing-bulk-background.ts), via the file_input Block Kit element (Slack modals do
- *      support file uploads, contrary to what the interactions handler used to assume — the
- *      uploaded file arrives in view_submission as a Slack-hosted file we download with the bot
- *      token, needing the `files:read` bot scope).
+ *      seo-listing-bulk-background.ts), via the file_input Block Kit element. Requires the bot
+ *      token to have the `files:write` scope (to accept an upload via that element at all) and
+ *      `files:read` (for the interactions handler to download the file content afterward) —
+ *      missing `files:write` specifically produces a hard-to-diagnose `invalid_arguments` on
+ *      views.open, which without the try/catch below surfaced to users as Slack's generic "app
+ *      did not respond" (confirmed 2026-09-14).
  *
  * `/seo-listing bulk` — a shortcut that skips the modal and replies ephemeral with a direct link
  *   to the same brand's Bulk SEO listing upload page on the dashboard, for anyone who'd rather
  *   review the queued batch there before/while it runs.
  */
 const APP_URL = process.env.URL || "https://flagship-insights-ai.netlify.app";
+
+function buildSeoListingModalView(brand: { id: string; name: string }, userId: string | null, channelId: string) {
+  return {
+    type: "modal",
+    callback_id: "seo_listing_modal",
+    private_metadata: JSON.stringify({ brandId: brand.id, brandName: brand.name, userId, channelId }),
+    title: { type: "plain_text", text: "SEO listing request" },
+    submit: { type: "plain_text", text: "Request" },
+    close: { type: "plain_text", text: "Cancel" },
+    blocks: [
+      { type: "section", text: { type: "mrkdwn", text: `For *${brand.name}*` } },
+      {
+        type: "actions",
+        block_id: "bulk_template_block",
+        elements: [
+          {
+            type: "button",
+            action_id: "download_bulk_template",
+            text: { type: "plain_text", text: "📥 Download bulk CSV template" },
+            url: `${APP_URL}/api/seo-listing/bulk-template`,
+          },
+        ],
+      },
+      {
+        type: "input",
+        block_id: "bulk_file_block",
+        optional: true,
+        label: { type: "plain_text", text: "Many SKUs? Upload a completed bulk CSV (skips the fields below)" },
+        element: {
+          type: "file_input",
+          action_id: "bulk_file_input",
+          filetypes: ["csv"],
+          max_files: 1,
+        },
+      },
+      { type: "divider" },
+      {
+        type: "input",
+        block_id: "product_name_block",
+        optional: true,
+        label: { type: "plain_text", text: "Product name" },
+        element: { type: "plain_text_input", action_id: "product_name_input" },
+      },
+      {
+        type: "input",
+        block_id: "sku_block",
+        optional: true,
+        label: { type: "plain_text", text: "SKU" },
+        element: {
+          type: "plain_text_input",
+          action_id: "sku_input",
+          placeholder: { type: "plain_text", text: "Leave blank if not assigned yet" },
+        },
+      },
+      {
+        type: "input",
+        block_id: "product_url_block",
+        optional: true,
+        label: { type: "plain_text", text: "Website product page URL" },
+        element: { type: "plain_text_input", action_id: "product_url_input" },
+      },
+      {
+        type: "input",
+        block_id: "priority_block",
+        optional: true,
+        label: { type: "plain_text", text: "Priority" },
+        element: {
+          type: "static_select",
+          action_id: "priority_input",
+          options: PRIORITY_OPTIONS.map((p) => ({
+            text: { type: "plain_text", text: p.text },
+            value: p.value,
+          })),
+        },
+      },
+    ],
+  };
+}
+
 export async function POST(req: Request) {
   // Must read as raw text FIRST — verification depends on the exact raw bytes.
   const rawBody = await req.text();
@@ -90,84 +171,19 @@ export async function POST(req: Request) {
       });
     }
 
-    await openSlackView({
-      trigger_id: triggerId,
-      view: {
-        type: "modal",
-        callback_id: "seo_listing_modal",
-        private_metadata: JSON.stringify({ brandId: brand.id, brandName: brand.name, userId, channelId }),
-        title: { type: "plain_text", text: "SEO listing request" },
-        submit: { type: "plain_text", text: "Request" },
-        close: { type: "plain_text", text: "Cancel" },
-        blocks: [
-          { type: "section", text: { type: "mrkdwn", text: `For *${brand.name}*` } },
-          {
-            type: "actions",
-            block_id: "bulk_template_block",
-            elements: [
-              {
-                type: "button",
-                action_id: "download_bulk_template",
-                text: { type: "plain_text", text: "📥 Download bulk CSV template" },
-                url: `${APP_URL}/api/seo-listing/bulk-template`,
-              },
-            ],
-          },
-          {
-            type: "input",
-            block_id: "bulk_file_block",
-            optional: true,
-            label: { type: "plain_text", text: "Many SKUs? Upload a completed bulk CSV (skips the fields below)" },
-            element: {
-              type: "file_input",
-              action_id: "bulk_file_input",
-              filetypes: ["csv"],
-              max_files: 1,
-            },
-          },
-          { type: "divider" },
-          {
-            type: "input",
-            block_id: "product_name_block",
-            optional: true,
-            label: { type: "plain_text", text: "Product name" },
-            element: { type: "plain_text_input", action_id: "product_name_input" },
-          },
-          {
-            type: "input",
-            block_id: "sku_block",
-            optional: true,
-            label: { type: "plain_text", text: "SKU" },
-            element: {
-              type: "plain_text_input",
-              action_id: "sku_input",
-              placeholder: { type: "plain_text", text: "Leave blank if not assigned yet" },
-            },
-          },
-          {
-            type: "input",
-            block_id: "product_url_block",
-            optional: true,
-            label: { type: "plain_text", text: "Website product page URL" },
-            element: { type: "plain_text_input", action_id: "product_url_input" },
-          },
-          {
-            type: "input",
-            block_id: "priority_block",
-            optional: true,
-            label: { type: "plain_text", text: "Priority" },
-            element: {
-              type: "static_select",
-              action_id: "priority_input",
-              options: PRIORITY_OPTIONS.map((p) => ({
-                text: { type: "plain_text", text: p.text },
-                value: p.value,
-              })),
-            },
-          },
-        ],
-      },
-    });
+    try {
+      await openSlackView({ trigger_id: triggerId, view: buildSeoListingModalView(brand, userId, channelId) });
+    } catch (err) {
+      // A crash here with no response is exactly what produces Slack's generic "app did not
+      // respond" error (confirmed 2026-09-14 — invalid_arguments from views.open threw and this
+      // route never returned anything within Slack's 3s budget). Always ack instead, with the
+      // real Slack error surfaced so it's debuggable from the channel, not just function logs.
+      console.error(`openSlackView failed for /seo-listing: ${err instanceof Error ? err.message : err}`);
+      return Response.json({
+        response_type: "ephemeral",
+        text: `⚠️ Couldn't open the SEO listing form: ${err instanceof Error ? err.message : "unknown error"}`,
+      });
+    }
 
     return Response.json({});
   }

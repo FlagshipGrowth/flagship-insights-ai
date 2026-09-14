@@ -47,7 +47,12 @@ export async function openSlackView({ trigger_id, view }: { trigger_id: string; 
     body: JSON.stringify({ trigger_id, view }),
   });
   const data = await res.json();
-  if (!data.ok) throw new Error(`Slack API error (views.open): ${data.error}`);
+  if (!data.ok) {
+    // response_metadata.messages usually names the specific bad field (e.g. which block/element)
+    // — data.error alone ("invalid_arguments", "invalid_blocks") is too generic to debug from.
+    const detail = data.response_metadata?.messages?.join("; ");
+    throw new Error(`Slack API error (views.open): ${data.error}${detail ? ` — ${detail}` : ""}`);
+  }
   return data;
 }
 
