@@ -14,8 +14,13 @@ export function LeadStageSelect({
   action: (formData: FormData) => Promise<void>;
 }) {
   return (
-    <form action={action}>
-      <select name="stage" defaultValue={stage} onChange={(e) => e.currentTarget.form?.requestSubmit()} style={{ width: "100%" }}>
+    <form action={action} style={{ display: "inline" }}>
+      <select
+        name="stage"
+        defaultValue={stage}
+        onChange={(e) => e.currentTarget.form?.requestSubmit()}
+        style={{ fontSize: "0.72rem", padding: "1px 2px", maxWidth: 88 }}
+      >
         {stages.map((s) => (
           <option key={s} value={s}>
             {labels[s]}

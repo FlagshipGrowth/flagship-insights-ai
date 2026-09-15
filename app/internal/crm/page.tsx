@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getUserContext, isOwner } from "@/lib/user-context";
-import { getLeads, getOwnerUsers, createLead, updateLeadStage, deleteLead, LEAD_STAGES, LEAD_STAGE_LABELS } from "@/lib/leads";
+import { getLeads, getOwnerUsers, createLead, updateLeadStage, deleteLead, setLeadHot, LEAD_STAGES, LEAD_STAGE_LABELS } from "@/lib/leads";
 import { AddLeadModal } from "@/components/AddLeadModal";
 import { LeadStageSelect } from "@/components/LeadStageSelect";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -31,6 +31,14 @@ async function deleteLeadAction(leadId: string) {
   revalidatePath("/internal/crm");
 }
 
+async function toggleHotAction(leadId: string, currentlyHot: boolean) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isOwner(ctx)) return;
+  await setLeadHot(leadId, !currentlyHot);
+  revalidatePath("/internal/crm");
+}
+
 export default async function CrmPage() {
   const ctx = await getUserContext();
   if (!ctx) redirect("/onboarding");
@@ -57,54 +65,62 @@ export default async function CrmPage() {
         <small>Flagship's own new-business pipeline — separate from client accounts. Open pipeline value: ${totalPipelineValue.toLocaleString()}.</small>
       </p>
 
-      <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }}>
+      <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
         {LEAD_STAGES.map((stage) => {
           const stageLeads = leads.filter((l) => l.stage === stage);
           return (
-            <div key={stage} style={{ minWidth: 240, flex: "0 0 240px" }}>
-              <h3 style={{ marginBottom: 8 }}>
+            <div key={stage} style={{ minWidth: 280, flex: "0 0 280px" }}>
+              <h3 style={{ marginBottom: 6, fontSize: "0.95rem" }}>
                 {LEAD_STAGE_LABELS[stage]} <small style={{ color: "var(--muted)" }}>({stageLeads.length})</small>
               </h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, minHeight: 60 }}>
-                {stageLeads.map((lead) => {
-                  const boundMove = moveLeadAction.bind(null, lead.id);
-                  const boundDelete = deleteLeadAction.bind(null, lead.id);
-                  return (
-                    <div key={lead.id} className="card" style={{ padding: 12 }}>
-                      <div style={{ fontFamily: "var(--font-heading), system-ui, sans-serif", fontWeight: 700 }}>
-                        {lead.companyName}
-                      </div>
-                      {lead.contactName && <small style={{ color: "var(--muted)" }}>{lead.contactName}</small>}
-                      {lead.estimatedValue !== null && (
-                        <div>
-                          <small>${lead.estimatedValue.toLocaleString()}</small>
-                        </div>
-                      )}
-                      {lead.assignedToEmail && (
-                        <div>
-                          <small style={{ color: "var(--muted)" }}>{lead.assignedToEmail}</small>
-                        </div>
-                      )}
-                      {lead.notes && (
-                        <p style={{ margin: "6px 0 0" }}>
-                          <small>{lead.notes}</small>
-                        </p>
-                      )}
-                      <div style={{ marginTop: 8 }}>
+              <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+                {stageLeads.length === 0 ? (
+                  <p style={{ margin: 0, padding: "8px 10px" }}>
+                    <small style={{ color: "var(--muted)" }}>—</small>
+                  </p>
+                ) : (
+                  stageLeads.map((lead, i) => {
+                    const boundMove = moveLeadAction.bind(null, lead.id);
+                    const boundDelete = deleteLeadAction.bind(null, lead.id);
+                    const boundToggleHot = toggleHotAction.bind(null, lead.id, lead.isHot);
+                    const titleParts = [lead.contactName, lead.email, lead.assignedToEmail && `Assigned: ${lead.assignedToEmail}`, lead.notes].filter(Boolean);
+                    return (
+                      <div
+                        key={lead.id}
+                        title={titleParts.join(" · ")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "3px 8px",
+                          fontSize: "0.78rem",
+                          borderBottom: i < stageLeads.length - 1 ? "1px solid var(--paper-2)" : "none",
+                        }}
+                      >
+                        <form action={boundToggleHot}>
+                          <button type="submit" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "0.85rem", lineHeight: 1 }}>
+                            {lead.isHot ? "🔥" : "⚪️"}
+                          </button>
+                        </form>
+                        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>
+                          {lead.companyName}
+                        </span>
+                        <span style={{ color: "var(--muted)", flexShrink: 0 }}>
+                          {lead.estimatedValue !== null ? `$${lead.estimatedValue.toLocaleString()}` : ""}
+                        </span>
                         <LeadStageSelect stage={lead.stage} stages={LEAD_STAGES} labels={LEAD_STAGE_LABELS} action={boundMove} />
+                        <form action={boundDelete}>
+                          <ConfirmButton
+                            confirmText={`Delete the lead for ${lead.companyName}? This cannot be undone.`}
+                            style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "#DC2626", fontSize: "0.9rem", lineHeight: 1 }}
+                          >
+                            ×
+                          </ConfirmButton>
+                        </form>
                       </div>
-                      <form action={boundDelete} style={{ marginTop: 6 }}>
-                        <ConfirmButton
-                          className="secondary"
-                          style={{ borderColor: "#DC2626", color: "#DC2626", fontSize: "0.8rem", padding: "4px 8px" }}
-                          confirmText={`Delete the lead for ${lead.companyName}? This cannot be undone.`}
-                        >
-                          Delete
-                        </ConfirmButton>
-                      </form>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
           );

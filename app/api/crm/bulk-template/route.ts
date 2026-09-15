@@ -1,6 +1,6 @@
 // Headers must match lib/leads-bulk.ts's HEADER_ALIASES (case-insensitive, trimmed).
-const TEMPLATE = `Company Name,Contact Name,Email,Phone,Source,Estimated Value,Stage,Notes
-Example Co,Jane Smith,jane@example.com,555-0100,Referral,50000,new,Warm intro from a past client
+const TEMPLATE = `Company Name,Contact Name,Email,Source,Estimated Value,Stage,Notes
+Example Co,Jane Smith,jane@example.com,Referral,50000,new,Warm intro from a past client
 `;
 
 export async function GET() {

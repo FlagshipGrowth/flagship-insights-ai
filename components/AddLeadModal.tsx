@@ -53,18 +53,11 @@ export function AddLeadModal({
             <br />
             <input name="contactName" style={{ width: "100%" }} />
           </label>
-          <div style={{ display: "flex", gap: 10 }}>
-            <label style={{ flex: 1 }}>
-              Email
-              <br />
-              <input type="email" name="email" style={{ width: "100%" }} />
-            </label>
-            <label style={{ flex: 1 }}>
-              Phone
-              <br />
-              <input name="phone" style={{ width: "100%" }} />
-            </label>
-          </div>
+          <label>
+            Email
+            <br />
+            <input type="email" name="email" style={{ width: "100%" }} />
+          </label>
           <div style={{ display: "flex", gap: 10 }}>
             <label style={{ flex: 1 }}>
               Source
@@ -74,9 +67,13 @@ export function AddLeadModal({
             <label style={{ flex: 1 }}>
               Est. value ($)
               <br />
-              <input type="number" name="estimatedValue" style={{ width: "100%" }} />
+              <input type="number" name="estimatedValue" placeholder="Defaults to 2,750" style={{ width: "100%" }} />
             </label>
           </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input type="checkbox" name="isHot" />
+            🔥 Hot lead
+          </label>
           <label>
             Assigned to
             <br />
