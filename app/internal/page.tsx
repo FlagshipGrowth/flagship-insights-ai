@@ -6,7 +6,6 @@ import { getAllBrandsWithClients, getAssignedBrandsWithClients } from "@/lib/met
 import { getOpenTaskCountsByTeam } from "@/lib/tasks";
 import { getPendingUsersCount, getManagedUsers, approveUser, removeManagedUser } from "@/lib/user-approvals";
 import { deleteBrand as deleteBrandRow } from "@/lib/brands";
-import { getAssignmentData, saveAssignments } from "@/lib/assignments";
 import { getDb } from "@/lib/db";
 import { seedOnboardingTasks } from "@/lib/onboarding-tasks";
 import { TEAMS } from "@/lib/teams";
@@ -56,15 +55,6 @@ async function addBrandsToClientAction(clientId: string, formData: FormData) {
   revalidatePath("/internal");
 }
 
-async function saveAssignmentsAction(formData: FormData) {
-  "use server";
-  const ctx = await getUserContext();
-  if (!ctx || !isOwner(ctx)) return;
-  await saveAssignments(formData);
-  revalidatePath("/internal");
-  revalidatePath("/internal/assignments");
-}
-
 function ActionCard({ href, title, subtitle }: { href: string; title: React.ReactNode; subtitle: string }) {
   return (
     <a
@@ -91,7 +81,6 @@ export default async function InternalPage() {
   const pendingUsersCount = isOwner(ctx) ? await getPendingUsersCount() : 0;
   const owner = isOwner(ctx);
   const managedUsers = owner ? await getManagedUsers() : [];
-  const assignmentData = owner ? await getAssignmentData() : null;
 
   return (
     <main>
@@ -283,57 +272,6 @@ export default async function InternalPage() {
                 </table>
               </div>
             </div>
-          )}
-        </section>
-      )}
-
-      {assignmentData && (
-        <section style={{ marginBottom: 32 }}>
-          <h2 style={{ marginBottom: 8 }}>Employee assignments</h2>
-          <p style={{ color: "var(--muted)", marginTop: 0 }}>
-            <small>Which employees can see which clients — controls the "assigned brands" scoping on their own view.</small>
-          </p>
-
-          {assignmentData.managers.length === 0 ? (
-            <p>No employees yet — invite one from Manage employees, then they'll show up here.</p>
-          ) : assignmentData.clients.length === 0 ? (
-            <p>No clients yet.</p>
-          ) : (
-            <form action={saveAssignmentsAction}>
-              <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 12 }}>
-                <div style={{ maxHeight: 400, overflowY: "auto" }}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th style={{ position: "sticky", top: 0, background: "#fff" }}>Client</th>
-                        {assignmentData.managers.map((m) => (
-                          <th key={m.id} style={{ position: "sticky", top: 0, background: "#fff" }}>
-                            {m.email}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {assignmentData.clients.map((c) => (
-                        <tr key={c.id}>
-                          <td>{c.name}</td>
-                          {assignmentData.managers.map((m) => (
-                            <td key={m.id} style={{ textAlign: "center" }}>
-                              <input
-                                type="checkbox"
-                                name={`assign__${m.id}__${c.id}`}
-                                defaultChecked={assignmentData.assignedSet.has(`${m.id}:${c.id}`)}
-                              />
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <button type="submit">Save assignments</button>
-            </form>
           )}
         </section>
       )}
