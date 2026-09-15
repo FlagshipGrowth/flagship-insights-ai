@@ -185,7 +185,9 @@ export async function POST(req: Request) {
       });
     }
 
-    return Response.json({});
+    // No JSON body here — the modal itself is the response. Response.json({}) previously sent a
+    // literal "{}" body, which Slack rendered as a visible ephemeral message reading "{}".
+    return new Response(null, { status: 200 });
   }
 
   if (command !== "/create-task") {
