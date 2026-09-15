@@ -1,8 +1,16 @@
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { getUserContext, isOwner } from "@/lib/user-context";
-import { getAgencyMarketingMetricsSeries, getAgencyMarketingSummary, getLastSyncedAt } from "@/lib/marketing";
+import {
+  getAgencyMarketingMetricsSeries,
+  getAgencyMarketingSummary,
+  getLastSyncedAt,
+  getMarketingRecommendations,
+  updateRecommendationStatus,
+} from "@/lib/marketing";
 import { PERIODS, type Period } from "@/lib/metrics";
 import { MetricsChart } from "@/components/MetricsChart";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 const SUMMARY_LABELS: Record<string, string> = {
   amount_spent: "Spend",
@@ -18,6 +26,14 @@ function formatSummaryValue(metricKey: string, value: number): string {
   return value.toLocaleString();
 }
 
+async function actionRecommendationAction(id: string, status: "actioned" | "dismissed") {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isOwner(ctx)) return;
+  await updateRecommendationStatus(id, status);
+  revalidatePath("/internal/marketing");
+}
+
 export default async function MarketingPage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   const ctx = await getUserContext();
   if (!ctx) redirect("/onboarding");
@@ -26,11 +42,13 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
   const { period: periodParam } = await searchParams;
   const period = (PERIODS as readonly string[]).includes(periodParam ?? "") ? (periodParam as Period) : "mtd";
 
-  const [series, summary, lastSyncedAt] = await Promise.all([
+  const [series, summary, lastSyncedAt, recommendations] = await Promise.all([
     getAgencyMarketingMetricsSeries(period),
     getAgencyMarketingSummary(period),
     getLastSyncedAt(),
+    getMarketingRecommendations(),
   ]);
+  const openRecommendations = recommendations.filter((r) => r.status === "open");
 
   return (
     <main>
@@ -46,6 +64,65 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
           {lastSyncedAt ? ` Last synced ${new Date(lastSyncedAt).toLocaleString()}.` : " Not yet synced."}
         </small>
       </p>
+
+      <section style={{ marginBottom: 24 }}>
+        <h2 style={{ marginBottom: 8 }}>
+          Ad Manager Recommendations{openRecommendations.length > 0 && ` (${openRecommendations.length})`}
+        </h2>
+        {openRecommendations.length === 0 ? (
+          <p style={{ color: "var(--muted)" }}>
+            <small>Nothing open. The Meta Ad Manager agent reviews performance and proposes new creative weekly.</small>
+          </p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {openRecommendations.map((r) => {
+              const boundAction = actionRecommendationAction.bind(null, r.id, "actioned");
+              const boundDismiss = actionRecommendationAction.bind(null, r.id, "dismissed");
+              return (
+                <div key={r.id} className="card">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                    <div>
+                      <span
+                        style={{
+                          fontSize: "0.7rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.03em",
+                          color: r.category === "creative" ? "var(--accent, #2447FF)" : "var(--muted)",
+                        }}
+                      >
+                        {r.category}
+                      </span>
+                      <div style={{ fontWeight: 700, marginTop: 2 }}>{r.title}</div>
+                    </div>
+                    <small style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>
+                      {new Date(r.createdAt).toLocaleDateString()}
+                    </small>
+                  </div>
+                  <p style={{ margin: "8px 0", whiteSpace: "pre-wrap" }}>{r.body}</p>
+                  {r.metaRef && (
+                    <p style={{ margin: "0 0 8px" }}>
+                      <small style={{ color: "var(--muted)" }}>{r.metaRef}</small>
+                    </p>
+                  )}
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <form action={boundAction}>
+                      <button type="submit" className="secondary">
+                        Mark actioned
+                      </button>
+                    </form>
+                    <form action={boundDismiss}>
+                      <ConfirmButton className="secondary" confirmText="Dismiss this recommendation?">
+                        Dismiss
+                      </ConfirmButton>
+                    </form>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       <nav className="pill-nav" style={{ marginBottom: 16 }}>
         {PERIODS.map((p) => (

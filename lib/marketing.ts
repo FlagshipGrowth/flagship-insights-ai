@@ -89,3 +89,57 @@ export async function upsertAgencyMarketingMetrics(rows: AgencyMetricInput[]): P
     `;
   }
 }
+
+export type RecommendationCategory = "performance" | "creative";
+export type RecommendationStatus = "open" | "actioned" | "dismissed";
+
+export interface MarketingRecommendation {
+  id: string;
+  createdAt: string;
+  category: RecommendationCategory;
+  title: string;
+  body: string;
+  metaRef: string | null;
+  status: RecommendationStatus;
+}
+
+export async function getMarketingRecommendations(): Promise<MarketingRecommendation[]> {
+  const sql = getDb();
+  const rows = await sql`
+    select id, created_at, category, title, body, meta_ref, status
+    from agency_marketing_recommendations
+    order by (status = 'open') desc, created_at desc
+    limit 100
+  `;
+  return rows.map((r: any) => ({
+    id: r.id,
+    createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
+    category: r.category,
+    title: r.title,
+    body: r.body,
+    metaRef: r.meta_ref,
+    status: r.status,
+  }));
+}
+
+export interface NewRecommendationInput {
+  category: RecommendationCategory;
+  title: string;
+  body: string;
+  metaRef?: string | null;
+}
+
+/** Insert used by the /api/marketing/recommendations route — the weekly Meta Ad Manager agent's
+ * only way to write here, same shared-secret auth pattern as the metrics sync route. */
+export async function insertMarketingRecommendation(input: NewRecommendationInput): Promise<void> {
+  const sql = getDb();
+  await sql`
+    insert into agency_marketing_recommendations (category, title, body, meta_ref)
+    values (${input.category}, ${input.title}, ${input.body}, ${input.metaRef ?? null})
+  `;
+}
+
+export async function updateRecommendationStatus(id: string, status: RecommendationStatus): Promise<void> {
+  const sql = getDb();
+  await sql`update agency_marketing_recommendations set status = ${status} where id = ${id}`;
+}
