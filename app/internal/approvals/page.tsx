@@ -55,10 +55,14 @@ export default async function ApprovalsPage() {
                   </td>
                   <td>{new Date(u.createdAt).toLocaleDateString()}</td>
                   <td>
-                    <form action={approveUserAction}>
-                      <input type="hidden" name="userId" value={u.id} />
-                      <button type="submit">Approve</button>
-                    </form>
+                    {u.brandCount > 0 ? (
+                      <form action={approveUserAction}>
+                        <input type="hidden" name="userId" value={u.id} />
+                        <button type="submit">Approve</button>
+                      </form>
+                    ) : (
+                      <a href={`/internal/brands/new?clientId=${u.clientId ?? ""}`}>Needs a brand — create one →</a>
+                    )}
                   </td>
                 </tr>
               ))}

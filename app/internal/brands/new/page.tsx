@@ -50,13 +50,14 @@ async function createBrand(formData: FormData) {
   redirect(`/internal/brand/${brandId}`);
 }
 
-export default async function NewBrandPage() {
+export default async function NewBrandPage({ searchParams }: { searchParams: Promise<{ clientId?: string }> }) {
   const ctx = await getUserContext();
   if (!ctx) redirect("/onboarding");
   if (!isOwner(ctx)) redirect("/internal");
 
   const clients = await getAllClients();
   const accountManagers = await getAccountManagerUsers();
+  const { clientId: prefillClientId } = await searchParams;
 
   return (
     <main>
@@ -76,7 +77,7 @@ export default async function NewBrandPage() {
           <label>
             Client
             <br />
-            <select name="clientId" defaultValue="" style={{ width: "100%" }}>
+            <select name="clientId" defaultValue={prefillClientId ?? ""} style={{ width: "100%" }}>
               <option value="">— Create a new client —</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>

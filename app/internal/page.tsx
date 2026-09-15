@@ -4,7 +4,7 @@ import { UserButton } from "@clerk/nextjs";
 import { getUserContext, isInternalStaff, isOwner } from "@/lib/user-context";
 import { getAllBrandsWithClients, getAssignedBrandsWithClients } from "@/lib/metrics";
 import { getOpenTaskCountsByTeam } from "@/lib/tasks";
-import { getPendingUsersCount } from "@/lib/user-approvals";
+import { getPendingUsersCount, getClientUsers, approveUser } from "@/lib/user-approvals";
 import { deleteBrand as deleteBrandRow } from "@/lib/brands";
 import { TEAMS } from "@/lib/teams";
 import { Badge } from "@/components/Badge";
@@ -15,6 +15,14 @@ async function deleteBrandAction(brandId: string) {
   const ctx = await getUserContext();
   if (!ctx || !isOwner(ctx)) return;
   await deleteBrandRow(brandId);
+  revalidatePath("/internal");
+}
+
+async function approveUserAction(userId: string) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isOwner(ctx)) return;
+  await approveUser(userId);
   revalidatePath("/internal");
 }
 
@@ -43,6 +51,7 @@ export default async function InternalPage() {
   const openCountsByTeam = isOwner(ctx) ? await getOpenTaskCountsByTeam() : null;
   const pendingUsersCount = isOwner(ctx) ? await getPendingUsersCount() : 0;
   const owner = isOwner(ctx);
+  const clientUsers = owner ? await getClientUsers() : [];
 
   return (
     <main>
@@ -147,6 +156,65 @@ export default async function InternalPage() {
           </div>
         )}
       </section>
+
+      {owner && (
+        <section style={{ marginBottom: 32 }}>
+          <h2 style={{ marginBottom: 8 }}>Manage users</h2>
+          <p style={{ color: "var(--muted)", marginTop: 0 }}>
+            <small>
+              A client sign-up can't be approved until their client has at least one brand — brands are created here,
+              never automatically at sign-up.
+            </small>
+          </p>
+
+          {clientUsers.length === 0 ? (
+            <p>No client users yet.</p>
+          ) : (
+            <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+              <div style={{ maxHeight: 400, overflowY: "auto" }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={{ position: "sticky", top: 0, background: "#fff" }}>Email</th>
+                      <th style={{ position: "sticky", top: 0, background: "#fff" }}>Client</th>
+                      <th style={{ position: "sticky", top: 0, background: "#fff" }}>Role</th>
+                      <th style={{ position: "sticky", top: 0, background: "#fff" }}>Status</th>
+                      <th style={{ position: "sticky", top: 0, background: "#fff" }}>Brands</th>
+                      <th style={{ position: "sticky", top: 0, background: "#fff" }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {clientUsers.map((u) => {
+                      const boundApprove = approveUserAction.bind(null, u.id);
+                      return (
+                        <tr key={u.id}>
+                          <td>{u.email}</td>
+                          <td>{u.clientName ?? "—"}</td>
+                          <td>{u.role.replace("_", " ")}</td>
+                          <td>
+                            <Badge variant={u.status}>{u.status}</Badge>
+                          </td>
+                          <td>{u.brandCount > 0 ? u.brandCount : <Badge variant="pending">No brand yet</Badge>}</td>
+                          <td>
+                            {u.status === "pending" &&
+                              (u.brandCount > 0 ? (
+                                <form action={boundApprove}>
+                                  <button type="submit">Approve</button>
+                                </form>
+                              ) : (
+                                <a href={`/internal/brands/new?clientId=${u.clientId ?? ""}`}>Create brand →</a>
+                              ))}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {openCountsByTeam && (
         <section>
