@@ -102,6 +102,17 @@ function buildSeoListingModalView(brand: { id: string; name: string }, userId: s
       },
       {
         type: "input",
+        block_id: "asin_block",
+        optional: true,
+        label: { type: "plain_text", text: "ASIN" },
+        element: {
+          type: "plain_text_input",
+          action_id: "asin_input",
+          placeholder: { type: "plain_text", text: "Leave blank if not live on Amazon yet" },
+        },
+      },
+      {
+        type: "input",
         block_id: "product_url_block",
         optional: true,
         label: { type: "plain_text", text: "Website product page URL" },

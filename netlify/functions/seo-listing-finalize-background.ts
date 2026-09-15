@@ -6,11 +6,12 @@ import { postSlackMessage, postSlackMessageOrFallback } from "./lib/slack";
 // function pattern as slack-finalize-task-background.ts, and for the same reason: acking Slack
 // (closing the modal) can't wait on DB work within its 3-second budget.
 export default async (req: Request) => {
-  const { brandId, brandName, productName, sku, productUrl, priority, userId, channelId } = (await req.json()) as {
+  const { brandId, brandName, productName, sku, asin, productUrl, priority, userId, channelId } = (await req.json()) as {
     brandId: string;
     brandName: string;
     productName: string;
     sku: string | null;
+    asin: string | null;
     productUrl: string;
     priority: string | null;
     userId: string;
@@ -20,9 +21,9 @@ export default async (req: Request) => {
   const sql = getDb();
   const description = `Amazon SEO listing request.\nWebsite product page: ${productUrl}`;
   const inserted = await sql`
-    insert into tasks (brand_id, title, description, category, team, sku, product_url, priority, status)
+    insert into tasks (brand_id, title, description, category, team, sku, asin, product_url, priority, status)
     values (${brandId}, ${`SEO listing: ${productName}`}, ${description}, 'SEO Listing Request', 'SEO Team',
-            ${sku}, ${productUrl}, ${priority}, 'todo')
+            ${sku}, ${asin}, ${productUrl}, ${priority}, 'todo')
     returning id
   `;
   const taskId = inserted[0]?.id;
@@ -60,6 +61,7 @@ export default async (req: Request) => {
 
 *Product:* ${productName}
 *SKU:* ${sku ?? "not assigned yet"}
+*ASIN:* ${asin ?? "not live on Amazon yet"}
 *Website page:* ${productUrl}
 *Priority:* ${priority ?? "none"}
 *Account manager:* ${accountManagerName ?? "none assigned in the system yet — mention this in your reply rather than guessing"}

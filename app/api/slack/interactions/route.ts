@@ -216,6 +216,7 @@ export async function POST(req: Request) {
     // Single-product path.
     const productName = values.product_name_block?.product_name_input?.value?.trim();
     const sku = values.sku_block?.sku_input?.value?.trim() || null;
+    const asin = values.asin_block?.asin_input?.value?.trim() || null;
     const productUrl = values.product_url_block?.product_url_input?.value?.trim();
     const priority = values.priority_block?.priority_input?.selected_option?.value || null;
 
@@ -234,6 +235,7 @@ export async function POST(req: Request) {
         brandName: metadata.brandName,
         productName,
         sku,
+        asin,
         productUrl,
         priority,
         userId: metadata.userId,
