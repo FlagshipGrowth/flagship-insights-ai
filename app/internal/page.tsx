@@ -81,7 +81,7 @@ export default async function InternalPage() {
 
       <section style={{ marginBottom: 32 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
-          <ActionCard href="/internal/my-tasks" title="My tasks" subtitle="Tasks assigned to you" />
+          {!owner && <ActionCard href="/internal/my-tasks" title="My tasks" subtitle="Tasks assigned to you" />}
           {owner && (
             <>
               <ActionCard href="/internal/brands/new" title="Add new brand" subtitle="Set up a brand for a client" />
