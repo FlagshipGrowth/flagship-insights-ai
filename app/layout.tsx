@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Inter } from "next/font/google";
-import { ClerkProvider } from "@clerk/nextjs";
+import { ClerkProvider, UserButton } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs/server";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 import "./globals.css";
 
@@ -21,7 +22,8 @@ export const metadata: Metadata = {
   title: "Flagship Insights AI",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const { userId } = await auth();
   return (
     <ClerkProvider
       appearance={{
@@ -41,11 +43,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable}`}>
         <body>
-          <header style={{ padding: "12px 24px", borderBottom: "1px solid var(--paper-2)" }}>
+          <header
+            style={{
+              padding: "12px 24px",
+              borderBottom: "1px solid var(--paper-2)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
             <a href="/">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/brand/lockup-ink.svg" alt="Flagship Growth" style={{ height: 28 }} />
             </a>
+            {/* Global so it shows on every screen for every signed-in role, including early-return
+                fallback pages (e.g. "no brands set up yet") that don't build their own header —
+                UserButton's own dropdown already covers both "Manage account" and "Sign out".
+                <SignedIn> isn't available on this Clerk version (Core 3 error at build) — check
+                auth() directly instead, same pattern already used elsewhere in this app. */}
+            {userId && <UserButton />}
           </header>
           <ImpersonationBanner />
           {children}

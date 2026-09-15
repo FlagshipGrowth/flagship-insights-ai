@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { UserButton } from "@clerk/nextjs";
 import { getUserContext, isInternalStaff, isOwner } from "@/lib/user-context";
 import { getAllBrandsWithClients, getAssignedBrandsWithClients } from "@/lib/metrics";
 import { getOpenTaskCountsByTeam } from "@/lib/tasks";
@@ -76,9 +75,8 @@ export default async function InternalPage() {
 
   return (
     <main>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+      <header style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0 }}>{ctx.role === "account_manager" ? "Your assigned brands" : "Admin"}</h1>
-        <UserButton />
       </header>
 
       <section style={{ marginBottom: 32 }}>

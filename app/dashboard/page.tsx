@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { UserButton } from "@clerk/nextjs";
 import { getUserContext, isInternalStaff } from "@/lib/user-context";
 import { getBrandsForClient, getBrandMetrics, getBrandMetricsTimeSeries, getLatestInsight, PERIODS, type Period } from "@/lib/metrics";
 import { getBrandReportLinks, getInventoryPreview, getReconciliationSummary } from "@/lib/reports";
@@ -42,9 +41,8 @@ export default async function DashboardPage({
 
   return (
     <main>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+      <header style={{ marginBottom: 20 }}>
         <h1>{brand.name}</h1>
-        <UserButton />
       </header>
 
       <nav className="top-nav">
