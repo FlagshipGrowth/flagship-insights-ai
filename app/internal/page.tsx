@@ -223,7 +223,7 @@ export default async function InternalPage() {
                         <tr key={u.id}>
                           <td>{u.email}</td>
                           <td>{u.clientName ?? "—"}</td>
-                          <td>{u.role === "account_manager" ? "employee" : u.role.replace("_", " ")}</td>
+                          <td>{u.role === "account_manager" ? "employee" : "client"}</td>
                           <td>
                             {isClientUser ? (
                               <Badge variant={u.status}>{u.status}</Badge>

@@ -9,8 +9,8 @@ async function createOrganizationWithLogo(formData: FormData) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
-  const companyName = (formData.get("companyName") as string)?.trim();
-  if (!companyName) return;
+  const name = (formData.get("name") as string)?.trim();
+  if (!name) return;
 
   let logoBlobKey: string | null = null;
   const logo = formData.get("logo") as File | null;
@@ -20,13 +20,20 @@ async function createOrganizationWithLogo(formData: FormData) {
     await store.set(logoBlobKey, await logo.arrayBuffer(), { metadata: { contentType: logo.type } });
   }
 
+  // Clerk still needs an Organization to exist (it's the mechanism the rest of this app's access
+  // model is built on — see organizationMembership.created), and `clients.name` needs a value —
+  // both just take whatever name the person gave here for now. There's no separate "company
+  // name" collected at all: real client/brand setup happens admin-side afterward (see
+  // /internal/brands/new and CLAUDE.md's "we create the brand on our end"), so this is just an
+  // identity for their account, not a real company record yet.
+  //
   // Created directly via the Backend SDK (not the client-side <CreateOrganization> widget) so
   // the logo can be attached in this same request instead of racing the organization.created
   // webhook, which still fires afterward and is a safe no-op here (provisionClientOrg is
   // idempotent on both the client and brand rows).
   const clerk = await clerkClient();
-  const org = await clerk.organizations.createOrganization({ name: companyName, createdBy: userId });
-  await provisionClientOrg({ name: companyName, clerkOrgId: org.id, logoBlobKey });
+  const org = await clerk.organizations.createOrganization({ name, createdBy: userId });
+  await provisionClientOrg({ name, clerkOrgId: org.id, logoBlobKey });
 
   redirect("/dashboard");
 }
@@ -43,16 +50,16 @@ export default async function OnboardingPage() {
 
   return (
     <main style={{ maxWidth: 480 }}>
-      <h1>Set up your organization</h1>
+      <h1>Finish signing up</h1>
       <p>
-        Create your organization to get started, or ask whoever invited you to add you to
-        theirs — you'll land here until that happens.
+        Tell us your name to get started, or ask whoever invited you to add you to their
+        account — you'll land here until that happens.
       </p>
       <form action={createOrganizationWithLogo} encType="multipart/form-data" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <label>
-          Company name
+          Your name
           <br />
-          <input type="text" name="companyName" required style={{ width: "100%" }} />
+          <input type="text" name="name" required style={{ width: "100%" }} />
         </label>
         <label>
           Logo (optional)
@@ -60,7 +67,7 @@ export default async function OnboardingPage() {
           <input type="file" name="logo" accept="image/*" />
         </label>
         <button type="submit" style={{ alignSelf: "flex-start" }}>
-          Create organization
+          Continue
         </button>
       </form>
     </main>
