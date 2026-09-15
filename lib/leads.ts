@@ -60,8 +60,31 @@ export async function getOwnerUsers(): Promise<{ id: string; email: string }[]> 
   return rows.map((r: any) => ({ id: r.id, email: r.email }));
 }
 
-export async function createLead(formData: FormData): Promise<void> {
+export interface NewLeadInput {
+  companyName: string;
+  contactName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  source?: string | null;
+  estimatedValue?: number | null;
+  notes?: string | null;
+  assignedToId?: string | null;
+  stage?: LeadStage;
+}
+
+/** Shared insert used by the "+ Add lead" modal, the CSV bulk-upload route, and the public
+ * contact-form endpoint — every lead-creation path funnels through here. */
+export async function insertLead(input: NewLeadInput): Promise<void> {
   const sql = getDb();
+  await sql`
+    insert into leads (company_name, contact_name, email, phone, source, estimated_value, notes, assigned_to_id, stage)
+    values (${input.companyName}, ${input.contactName ?? null}, ${input.email ?? null}, ${input.phone ?? null},
+            ${input.source ?? null}, ${input.estimatedValue ?? null}, ${input.notes ?? null},
+            ${input.assignedToId ?? null}, ${input.stage ?? "new"})
+  `;
+}
+
+export async function createLead(formData: FormData): Promise<void> {
   const companyName = (formData.get("companyName") as string)?.trim();
   if (!companyName) return;
 
@@ -69,11 +92,16 @@ export async function createLead(formData: FormData): Promise<void> {
   const value = (formData.get("estimatedValue") as string)?.trim();
   const assignedToId = (formData.get("assignedToId") as string) || null;
 
-  await sql`
-    insert into leads (company_name, contact_name, email, phone, source, estimated_value, notes, assigned_to_id)
-    values (${companyName}, ${text("contactName")}, ${text("email")}, ${text("phone")}, ${text("source")},
-            ${value ? Number(value) : null}, ${text("notes")}, ${assignedToId})
-  `;
+  await insertLead({
+    companyName,
+    contactName: text("contactName"),
+    email: text("email"),
+    phone: text("phone"),
+    source: text("source"),
+    estimatedValue: value ? Number(value) : null,
+    notes: text("notes"),
+    assignedToId,
+  });
 }
 
 export async function updateLeadStage(leadId: string, stage: string): Promise<void> {

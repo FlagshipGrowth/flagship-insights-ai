@@ -48,7 +48,10 @@ export default async function CrmPage() {
       </a>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <h1 style={{ margin: 0 }}>CRM</h1>
-        <AddLeadModal owners={owners} action={createLeadAction} />
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <a href="/internal/crm/bulk-upload">Bulk upload leads</a>
+          <AddLeadModal owners={owners} action={createLeadAction} />
+        </div>
       </header>
       <p style={{ color: "var(--muted)", marginTop: 0, marginBottom: 24 }}>
         <small>Flagship's own new-business pipeline — separate from client accounts. Open pipeline value: ${totalPipelineValue.toLocaleString()}.</small>
