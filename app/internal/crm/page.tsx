@@ -10,13 +10,14 @@ import {
   deleteLead,
   setLeadHot,
   toggleLeadHot,
+  updateLeadValue,
   LEAD_STAGES,
   LEAD_STAGE_LABELS,
 } from "@/lib/leads";
 import { AddLeadModal } from "@/components/AddLeadModal";
 import { LeadStageSelect } from "@/components/LeadStageSelect";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { NewLeadsTable } from "@/components/NewLeadsTable";
+import { LeadsTable } from "@/components/LeadsTable";
 
 const PIPELINE_STAGES = LEAD_STAGES.filter((s) => s !== "new");
 
@@ -77,19 +78,41 @@ async function toggleHotPlainAction(leadId: string) {
   revalidatePath("/internal/crm");
 }
 
+async function updateValueAction(leadId: string, value: number | null) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isOwner(ctx)) return;
+  await updateLeadValue(leadId, value);
+  revalidatePath("/internal/crm");
+}
+
 export default async function CrmPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const ctx = await getUserContext();
   if (!ctx) redirect("/onboarding");
   if (!isOwner(ctx)) redirect("/internal");
 
   const { tab: tabParam } = await searchParams;
-  const tab = tabParam === "pipeline" ? "pipeline" : "new";
+  const tab = tabParam === "pipeline" ? "pipeline" : tabParam === "hot" ? "hot" : "new";
 
   const [leads, owners] = await Promise.all([getLeads(), getOwnerUsers()]);
   const newLeads = leads.filter((l) => l.stage === "new");
+  const hotLeads = leads.filter((l) => l.isHot);
   const totalPipelineValue = leads
     .filter((l) => l.stage !== "won" && l.stage !== "lost")
     .reduce((sum, l) => sum + (l.estimatedValue ?? 0), 0);
+
+  const toTableRow = (l: (typeof leads)[number]) => ({
+    id: l.id,
+    companyName: l.companyName,
+    contactName: l.contactName,
+    email: l.email,
+    assignedToEmail: l.assignedToEmail,
+    notes: l.notes,
+    source: l.source,
+    estimatedValue: l.estimatedValue,
+    isHot: l.isHot,
+    stage: l.stage,
+  });
 
   return (
     <main>
@@ -111,22 +134,41 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
         <a href="?tab=new" className={tab === "new" ? "active" : ""}>
           New ({newLeads.length})
         </a>
+        <a href="?tab=hot" className={tab === "hot" ? "active" : ""}>
+          🔥 Hot ({hotLeads.length})
+        </a>
         <a href="?tab=pipeline" className={tab === "pipeline" ? "active" : ""}>
           Pipeline ({leads.length - newLeads.length})
         </a>
       </nav>
 
-      {tab === "new" ? (
-        <NewLeadsTable
-          leads={newLeads.map((l) => ({ id: l.id, companyName: l.companyName, source: l.source, estimatedValue: l.estimatedValue, isHot: l.isHot }))}
+      {tab === "new" && (
+        <LeadsTable
+          leads={newLeads.map(toTableRow)}
           stages={LEAD_STAGES}
           stageLabels={LEAD_STAGE_LABELS}
           toggleHotAction={toggleHotPlainAction}
           moveOneAction={moveOnePlainAction}
           deleteAction={deleteLeadAction}
           bulkMoveAction={bulkMoveLeadsAction}
+          updateValueAction={updateValueAction}
         />
-      ) : (
+      )}
+
+      {tab === "hot" && (
+        <LeadsTable
+          leads={hotLeads.map(toTableRow)}
+          stages={LEAD_STAGES}
+          stageLabels={LEAD_STAGE_LABELS}
+          toggleHotAction={toggleHotPlainAction}
+          moveOneAction={moveOnePlainAction}
+          deleteAction={deleteLeadAction}
+          bulkMoveAction={bulkMoveLeadsAction}
+          updateValueAction={updateValueAction}
+        />
+      )}
+
+      {tab === "pipeline" && (
         <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
           {PIPELINE_STAGES.map((stage) => {
             const stageLeads = leads.filter((l) => l.stage === stage);

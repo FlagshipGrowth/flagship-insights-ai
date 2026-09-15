@@ -123,6 +123,11 @@ export async function bulkUpdateLeadStage(leadIds: string[], stage: string): Pro
   await sql`update leads set stage = ${stage}, updated_at = now() where id = any(${leadIds}::uuid[])`;
 }
 
+export async function updateLeadValue(leadId: string, estimatedValue: number | null): Promise<void> {
+  const sql = getDb();
+  await sql`update leads set estimated_value = ${estimatedValue}, updated_at = now() where id = ${leadId}`;
+}
+
 export async function deleteLead(leadId: string): Promise<void> {
   const sql = getDb();
   await sql`delete from leads where id = ${leadId}`;
