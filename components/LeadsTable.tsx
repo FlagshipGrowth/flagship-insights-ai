@@ -31,6 +31,7 @@ export function LeadsTable({
   deleteAction,
   bulkMoveAction,
   updateValueAction,
+  updateSourceAction,
 }: {
   leads: LeadRow[];
   stages: readonly string[];
@@ -40,6 +41,7 @@ export function LeadsTable({
   deleteAction: (leadId: string) => Promise<void>;
   bulkMoveAction: (leadIds: string[], stage: string) => Promise<void>;
   updateValueAction: (leadId: string, value: number | null) => Promise<void>;
+  updateSourceAction: (leadId: string, source: string | null) => Promise<void>;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkStage, setBulkStage] = useState(stages.find((s) => s !== "new") ?? stages[0]);
@@ -144,19 +146,23 @@ export function LeadsTable({
                     <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>
                       {lead.companyName}
                     </span>
-                    <span
+                    <input
+                      type="text"
+                      defaultValue={lead.source ?? ""}
+                      placeholder="Source"
+                      onBlur={(e) => {
+                        const v = e.target.value.trim();
+                        updateSourceAction(lead.id, v || null);
+                      }}
                       style={{
                         color: "var(--muted)",
                         flexShrink: 0,
-                        minWidth: 100,
+                        width: 110,
                         textAlign: "right",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
+                        fontSize: "0.8rem",
+                        padding: "1px 3px",
                       }}
-                    >
-                      {lead.source ?? "—"}
-                    </span>
+                    />
                     <span style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0, minWidth: 80, justifyContent: "flex-end" }}>
                       <small style={{ color: "var(--muted)" }}>$</small>
                       <input

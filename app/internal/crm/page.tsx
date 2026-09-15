@@ -11,6 +11,7 @@ import {
   setLeadHot,
   toggleLeadHot,
   updateLeadValue,
+  updateLeadSource,
   LEAD_STAGES,
   LEAD_STAGE_LABELS,
 } from "@/lib/leads";
@@ -86,6 +87,14 @@ async function updateValueAction(leadId: string, value: number | null) {
   revalidatePath("/internal/crm");
 }
 
+async function updateSourceAction(leadId: string, source: string | null) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isOwner(ctx)) return;
+  await updateLeadSource(leadId, source);
+  revalidatePath("/internal/crm");
+}
+
 export default async function CrmPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const ctx = await getUserContext();
   if (!ctx) redirect("/onboarding");
@@ -152,6 +161,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
           deleteAction={deleteLeadAction}
           bulkMoveAction={bulkMoveLeadsAction}
           updateValueAction={updateValueAction}
+          updateSourceAction={updateSourceAction}
         />
       )}
 
@@ -165,6 +175,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
           deleteAction={deleteLeadAction}
           bulkMoveAction={bulkMoveLeadsAction}
           updateValueAction={updateValueAction}
+          updateSourceAction={updateSourceAction}
         />
       )}
 

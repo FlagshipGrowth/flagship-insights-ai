@@ -128,6 +128,11 @@ export async function updateLeadValue(leadId: string, estimatedValue: number | n
   await sql`update leads set estimated_value = ${estimatedValue}, updated_at = now() where id = ${leadId}`;
 }
 
+export async function updateLeadSource(leadId: string, source: string | null): Promise<void> {
+  const sql = getDb();
+  await sql`update leads set source = ${source}, updated_at = now() where id = ${leadId}`;
+}
+
 export async function deleteLead(leadId: string): Promise<void> {
   const sql = getDb();
   await sql`delete from leads where id = ${leadId}`;
