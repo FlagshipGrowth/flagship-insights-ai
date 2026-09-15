@@ -2,13 +2,29 @@
 
 import { useState } from "react";
 
-/** Popup version of "Add Brand" on /internal's Manage Users table — lets an owner create several
- * brands for one client in a single submission (a client often needs more than one storefront:
- * Amazon US, Amazon CA, Walmart, ...) instead of visiting /internal/brands/new once per brand.
- * `action` is a Server Action already bound to this row's clientId (app/internal/page.tsx). */
-export function AddBrandModal({ clientName, action }: { clientName: string; action: (formData: FormData) => Promise<void> }) {
+export interface BrandPickerOption {
+  id: string;
+  name: string;
+  clientName: string;
+}
+
+/** "Add Brand" on /internal's Manage Users table — a popup checklist over every brand in the
+ * system (not a form for typing new ones). Checking a brand grants this specific user visibility
+ * into it in addition to their own client's brands — purely additive, multiple users (even across
+ * different clients) can be granted the same brand; it never reassigns the brand's own client_id.
+ * `action` is a Server Action already bound to this row's userId (app/internal/page.tsx). */
+export function AddBrandModal({
+  userLabel,
+  brands,
+  selectedIds,
+  action,
+}: {
+  userLabel: string;
+  brands: BrandPickerOption[];
+  selectedIds: string[];
+  action: (formData: FormData) => Promise<void>;
+}) {
   const [open, setOpen] = useState(false);
-  const [rowIds, setRowIds] = useState<number[]>([0]);
 
   if (!open) {
     return (
@@ -32,23 +48,30 @@ export function AddBrandModal({ clientName, action }: { clientName: string; acti
       onClick={() => setOpen(false)}
     >
       <div className="card" style={{ maxWidth: 480, width: "100%", margin: 16 }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginTop: 0 }}>Add brand{rowIds.length > 1 ? "s" : ""} for {clientName}</h3>
+        <h3 style={{ marginTop: 0 }}>Brand access for {userLabel}</h3>
+        <p style={{ marginTop: 0 }}>
+          <small style={{ color: "var(--muted)" }}>Select every brand this user should be able to see.</small>
+        </p>
         <form
           action={async (formData) => {
             await action(formData);
             setOpen(false);
-            setRowIds([0]);
           }}
-          style={{ display: "flex", flexDirection: "column", gap: 8 }}
         >
-          {rowIds.map((id, i) => (
-            <input key={id} name="brandName" placeholder={`Brand name ${i + 1}`} required={i === 0} style={{ width: "100%" }} />
-          ))}
-          <button type="button" className="secondary" onClick={() => setRowIds([...rowIds, Date.now()])} style={{ alignSelf: "flex-start" }}>
-            + Add another brand
-          </button>
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button type="submit">Create</button>
+          <div style={{ maxHeight: 320, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+            {brands.length === 0 ? (
+              <p>No brands exist yet.</p>
+            ) : (
+              brands.map((b) => (
+                <label key={b.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input type="checkbox" name="brandId" value={b.id} defaultChecked={selectedIds.includes(b.id)} />
+                  {b.name} <small style={{ color: "var(--muted)" }}>({b.clientName})</small>
+                </label>
+              ))
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="submit">Save</button>
             <button type="button" className="secondary" onClick={() => setOpen(false)}>
               Cancel
             </button>

@@ -22,7 +22,7 @@ export default async function DashboardPage({
     return <main>Your account isn't linked to a client yet — contact Flagship Growth.</main>;
   }
 
-  const brands = await getBrandsForClient(ctx.clientId);
+  const brands = await getBrandsForClient(ctx.clientId, ctx.id);
   const { brand: brandParam, period: periodParam } = await searchParams;
   const brand = (brands.find((b: any) => b.id === brandParam) ?? brands[0]) as
     | { id: string; name: string; channels_enabled: string[] }

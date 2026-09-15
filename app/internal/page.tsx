@@ -6,8 +6,7 @@ import { getAllBrandsWithClients, getAssignedBrandsWithClients } from "@/lib/met
 import { getOpenTaskCountsByTeam } from "@/lib/tasks";
 import { getPendingUsersCount, getManagedUsers, approveUser, removeManagedUser } from "@/lib/user-approvals";
 import { deleteBrand as deleteBrandRow } from "@/lib/brands";
-import { getDb } from "@/lib/db";
-import { seedOnboardingTasks } from "@/lib/onboarding-tasks";
+import { getAllBrandsForPicker, getBrandAccessMap, setBrandAccessForUser } from "@/lib/brand-access";
 import { TEAMS } from "@/lib/teams";
 import { Badge } from "@/components/Badge";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -37,21 +36,12 @@ async function removeManagedUserAction(userId: string, role: string) {
   revalidatePath("/internal");
 }
 
-async function addBrandsToClientAction(clientId: string, formData: FormData) {
+async function setBrandAccessAction(userId: string, formData: FormData) {
   "use server";
   const ctx = await getUserContext();
   if (!ctx || !isOwner(ctx)) return;
-
-  const names = (formData.getAll("brandName") as string[]).map((n) => n.trim()).filter(Boolean);
-  if (names.length === 0) return;
-
-  const sql = getDb();
-  for (const name of names) {
-    const newBrand = await sql`
-      insert into brands (client_id, name, channels_enabled) values (${clientId}, ${name}, '{}') returning id
-    `;
-    await seedOnboardingTasks(newBrand[0].id);
-  }
+  const brandIds = formData.getAll("brandId") as string[];
+  await setBrandAccessForUser(userId, brandIds);
   revalidatePath("/internal");
 }
 
@@ -81,6 +71,8 @@ export default async function InternalPage() {
   const pendingUsersCount = isOwner(ctx) ? await getPendingUsersCount() : 0;
   const owner = isOwner(ctx);
   const managedUsers = owner ? await getManagedUsers() : [];
+  const allBrands = owner ? await getAllBrandsForPicker() : [];
+  const brandAccessMap = owner ? await getBrandAccessMap() : new Map<string, string[]>();
 
   return (
     <main>
@@ -190,8 +182,10 @@ export default async function InternalPage() {
           <h2 style={{ marginBottom: 8 }}>Manage users</h2>
           <p style={{ color: "var(--muted)", marginTop: 0 }}>
             <small>
-              Client sign-ups and employees together. A client sign-up can't be approved until their client has at
-              least one brand — brands are created here, never automatically at sign-up.
+              Client sign-ups and employees together. A client sign-up can't be approved until they can see at
+              least one brand — use Add Brand to grant a user access to any existing brand (multiple users, even
+              across different clients, can be granted the same one). New brands themselves are still created from
+              Add new brand above, never automatically at sign-up.
             </small>
           </p>
 
@@ -218,7 +212,8 @@ export default async function InternalPage() {
                       const isClientUser = u.role === "client_owner" || u.role === "client_teammate";
                       const boundApprove = approveUserAction.bind(null, u.id);
                       const boundRemove = removeManagedUserAction.bind(null, u.id, u.role);
-                      const boundAddBrands = u.clientId ? addBrandsToClientAction.bind(null, u.clientId) : null;
+                      const boundSetBrandAccess = setBrandAccessAction.bind(null, u.id);
+                      const selectedBrandIds = brandAccessMap.get(u.id) ?? [];
                       return (
                         <tr key={u.id}>
                           <td>{u.email}</td>
@@ -245,7 +240,12 @@ export default async function InternalPage() {
                             )}
                           </td>
                           <td>
-                            {boundAddBrands && <AddBrandModal clientName={u.clientName ?? u.email} action={boundAddBrands} />}
+                            <AddBrandModal
+                              userLabel={u.email}
+                              brands={allBrands}
+                              selectedIds={selectedBrandIds}
+                              action={boundSetBrandAccess}
+                            />
                           </td>
                           <td>
                             {isClientUser && u.status === "pending" && u.brandCount > 0 && (

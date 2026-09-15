@@ -22,7 +22,7 @@ export default async function ConnectionsPage() {
     return <main>Your account isn't linked to a client yet.</main>;
   }
 
-  const brands = await getBrandsForClient(ctx.clientId);
+  const brands = await getBrandsForClient(ctx.clientId, ctx.id);
 
   return (
     <main>

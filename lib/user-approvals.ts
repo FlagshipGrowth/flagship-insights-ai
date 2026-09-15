@@ -22,12 +22,12 @@ export async function getPendingUsers(): Promise<PendingUser[]> {
   const sql = getDb();
   const rows = await sql`
     select u.id, u.email, u.role, u.client_id, c.name as client_name, u.created_at,
-           count(b.id) as brand_count
+           (select count(distinct b.id) from brands b
+            where b.client_id = u.client_id or b.id in (select brand_id from user_brand_access where user_id = u.id)
+           ) as brand_count
     from users u
     left join clients c on c.id = u.client_id
-    left join brands b on b.client_id = u.client_id
     where u.status = 'pending'
-    group by u.id, u.email, u.role, u.client_id, c.name, u.created_at
     order by u.created_at asc
   `;
   return rows.map((r: any) => ({
@@ -58,19 +58,19 @@ export interface ClientUser {
 }
 
 /** Every client-side user (owner or teammate), for the "Manage users" section on /internal —
- * broader than getPendingUsers, which is just the approval queue. A user's brands are their
- * client's brands (brands.client_id), not assigned per-user, so "assigned to a brand" here just
- * means their client has at least one. */
+ * broader than getPendingUsers, which is just the approval queue. brandCount counts both their
+ * own client's brands (brands.client_id) and any explicitly granted via user_brand_access (see
+ * lib/brand-access.ts) — either is enough to satisfy "assigned to a brand." */
 export async function getClientUsers(): Promise<ClientUser[]> {
   const sql = getDb();
   const rows = await sql`
     select u.id, u.email, u.role, u.status, u.client_id, c.name as client_name,
-           count(b.id) as brand_count
+           (select count(distinct b.id) from brands b
+            where b.client_id = u.client_id or b.id in (select brand_id from user_brand_access where user_id = u.id)
+           ) as brand_count
     from users u
     left join clients c on c.id = u.client_id
-    left join brands b on b.client_id = u.client_id
     where u.role in ('client_owner', 'client_teammate')
-    group by u.id, u.email, u.role, u.status, u.client_id, c.name
     order by (u.status = 'pending') desc, c.name, u.email
   `;
   return rows.map((r: any) => ({

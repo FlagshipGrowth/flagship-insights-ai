@@ -56,7 +56,7 @@ export default async function CatalogPage({
     return <main>Your account isn't linked to a client yet.</main>;
   }
 
-  const brands = await getBrandsForClient(ctx.clientId);
+  const brands = await getBrandsForClient(ctx.clientId, ctx.id);
   const { brand: brandParam } = await searchParams;
   const brand = (brands.find((b: any) => b.id === brandParam) ?? brands[0]) as { id: string; name: string } | undefined;
 

@@ -60,9 +60,18 @@ export async function getBrandMetricsTimeSeries(brandId: string, period: Period)
   }));
 }
 
-export async function getBrandsForClient(clientId: string) {
+/** userId also pulls in any brands explicitly granted via user_brand_access (see
+ * lib/brand-access.ts) — multiple users, potentially across different clients, can be granted
+ * visibility into the same brand this way, on top of whatever their own client owns. */
+export async function getBrandsForClient(clientId: string, userId: string) {
   const sql = getDb();
-  return sql`select id, name, channels_enabled from brands where client_id = ${clientId} order by name`;
+  return sql`
+    select distinct b.id, b.name, b.channels_enabled
+    from brands b
+    where b.client_id = ${clientId}
+       or b.id in (select brand_id from user_brand_access where user_id = ${userId})
+    order by b.name
+  `;
 }
 
 export async function getLatestInsight(brandId: string) {
