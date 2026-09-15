@@ -71,6 +71,18 @@ ${claudeMention}please run the amazon-seo-listing skill for this product and rep
     if (taskId) {
       await sql`update tasks set slack_thread_ts = ${result.ts} where id = ${taskId}`;
     }
+    // Confirmed 2026-09-15: Claude Tag can silently fail to pick up this exact mention (no error,
+    // no reply — its own words when asked directly: "the request just didn't get picked up").
+    // Always send one immediate follow-up in the same thread rather than waiting to find out —
+    // cheap, and doubles the chance one of the two mentions actually lands.
+    if (claudeMention) {
+      await postSlackMessage({
+        channel: channelId,
+        thread_ts: result.ts,
+        text: `${claudeMention}following up on the request above — please pick this up now.`,
+        token: process.env.SLACK_USER_TOKEN,
+      }).catch((err) => console.error(`SEO listing follow-up nudge failed: ${err instanceof Error ? err.message : err}`));
+    }
   } catch (err) {
     // Same fallback as everywhere else in this integration — post the failure where a human will
     // actually see it rather than losing it silently. Posts as the bot (not the user token) since

@@ -75,6 +75,17 @@ ${claudeMention}please run the amazon-seo-listing skill for this product — tas
         if (taskId) {
           await sql`update tasks set slack_thread_ts = ${result.ts} where id = ${taskId}`;
         }
+        // Same immediate follow-up as seo-listing-finalize-background.ts — Claude Tag can
+        // silently miss the original mention, so always send one extra nudge right away.
+        if (claudeMention) {
+          await sleep(DELAY_BETWEEN_POSTS_MS);
+          await postSlackMessage({
+            channel: channelId,
+            thread_ts: result.ts,
+            text: `${claudeMention}following up on the request above — please pick this up now.`,
+            token: process.env.SLACK_USER_TOKEN,
+          }).catch((err) => console.error(`SEO listing bulk follow-up nudge failed (row ${i + 1}): ${err instanceof Error ? err.message : err}`));
+        }
       } catch (err) {
         await postSlackMessageOrFallback({ channel: channelId, text });
       }
