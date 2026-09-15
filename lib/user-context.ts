@@ -81,8 +81,9 @@ export function deriveNameFromEmail(email: string): string {
   return localPart.charAt(0).toUpperCase() + localPart.slice(1).toLowerCase();
 }
 
-/** internal_admin can access any brand; account_manager only brands under their assigned
- * clients (account_manager_assignments) — same scoping as the /internal list view. */
+/** internal_admin can access any brand; account_manager only brands they can see — either via a
+ * whole-client assignment (account_manager_assignments) or a direct per-brand grant
+ * (user_brand_access) — same scoping as getAssignedBrandsWithClients / the /internal list view. */
 export async function canStaffAccessBrand(ctx: UserContext, brandId: string): Promise<boolean> {
   if (ctx.role === "internal_admin") return true;
   if (ctx.role !== "account_manager") return false;
@@ -90,8 +91,11 @@ export async function canStaffAccessBrand(ctx: UserContext, brandId: string): Pr
   const sql = getDb();
   const rows = await sql`
     select 1 from brands b
-    join account_manager_assignments a on a.client_id = b.client_id
-    where b.id = ${brandId} and a.user_id = ${ctx.id}
+    where b.id = ${brandId}
+      and (
+        b.client_id in (select client_id from account_manager_assignments where user_id = ${ctx.id})
+        or b.id in (select brand_id from user_brand_access where user_id = ${ctx.id})
+      )
   `;
   return rows.length > 0;
 }

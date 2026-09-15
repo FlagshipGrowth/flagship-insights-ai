@@ -98,8 +98,9 @@ export async function getAllBrandsWithClients() {
   `;
 }
 
-/** Same shape as getAllBrandsWithClients, but scoped to only the clients this account_manager
- * has been assigned — see account_manager_assignments (SPEC.md §2's "assigned clients" scope). */
+/** Same shape as getAllBrandsWithClients, but scoped to only the brands this account_manager can
+ * see — either via a whole-client assignment (account_manager_assignments, SPEC.md §2's "assigned
+ * clients" scope) or a direct per-brand grant (user_brand_access, same mechanism clients use). */
 export async function getAssignedBrandsWithClients(userId: string) {
   const sql = getDb();
   return sql`
@@ -107,9 +108,9 @@ export async function getAssignedBrandsWithClients(userId: string) {
            count(t.id) filter (where t.status <> 'done') as open_task_count
     from brands b
     join clients c on c.id = b.client_id
-    join account_manager_assignments a on a.client_id = c.id
     left join tasks t on t.brand_id = b.id
-    where a.user_id = ${userId}
+    where c.id in (select client_id from account_manager_assignments where user_id = ${userId})
+       or b.id in (select brand_id from user_brand_access where user_id = ${userId})
     group by b.id, b.name, c.id, c.name, b.channels_enabled
     order by c.name, b.name
   `;

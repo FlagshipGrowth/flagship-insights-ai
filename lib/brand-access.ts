@@ -40,8 +40,8 @@ export async function getBrandAccessMap(): Promise<Map<string, string[]>> {
   return map;
 }
 
-/** Replace-all, same convention as lib/assignments.ts's saveAssignments — low write frequency,
- * no concurrent-edit concern at this scale. Purely additive visibility: never touches
+/** Replace-all, same convention as lib/assignments.ts's setClientAssignmentsForUser — low write
+ * frequency, no concurrent-edit concern at this scale. Purely additive visibility: never touches
  * brands.client_id, so a brand's actual ownership is unaffected by who else can see it. */
 export async function setBrandAccessForUser(userId: string, brandIds: string[]): Promise<void> {
   const sql = getDb();

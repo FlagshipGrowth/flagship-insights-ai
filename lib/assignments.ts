@@ -1,40 +1,49 @@
 import { getDb } from "./db";
 
-export interface AssignmentData {
-  managers: { id: string; email: string }[];
-  clients: { id: string; name: string }[];
-  assignedSet: Set<string>;
+export interface AssignableEmployee {
+  id: string;
+  email: string;
 }
 
-/** Shared by /internal (the embedded "Employee assignments" section) and the standalone
- * /internal/assignments page — same clients x employees checkbox matrix either place. */
-export async function getAssignmentData(): Promise<AssignmentData> {
-  const sql = getDb();
-  const managers = await sql`select id, email from users where role = 'account_manager' order by email`;
-  const clients = await sql`select id, name from clients order by name`;
-  const assignments = await sql`select user_id, client_id from account_manager_assignments`;
-  return {
-    managers: managers.map((m: any) => ({ id: m.id, email: m.email })),
-    clients: clients.map((c: any) => ({ id: c.id, name: c.name })),
-    assignedSet: new Set(assignments.map((a: any) => `${a.user_id}:${a.client_id}`)),
-  };
+export interface AssignableClient {
+  id: string;
+  name: string;
 }
 
-/** Small admin-only table, low write frequency — replace-all is simpler and safer than diffing,
- * and there's no concurrent-edit concern at this scale. Caller is responsible for the isOwner()
- * gate (both call sites already check before invoking this). */
-export async function saveAssignments(formData: FormData): Promise<void> {
+export async function getEmployeesForAssignment(): Promise<AssignableEmployee[]> {
   const sql = getDb();
-  const pairs: { userId: string; clientId: string }[] = [];
-  for (const [key, value] of formData.entries()) {
-    if (key.startsWith("assign__") && value === "on") {
-      const [, userId, clientId] = key.split("__");
-      pairs.push({ userId, clientId });
-    }
+  const rows = await sql`select id, email from users where role = 'account_manager' order by email`;
+  return rows.map((r: any) => ({ id: r.id, email: r.email }));
+}
+
+export async function getClientsForAssignment(): Promise<AssignableClient[]> {
+  const sql = getDb();
+  const rows = await sql`select id, name from clients order by name`;
+  return rows.map((r: any) => ({ id: r.id, name: r.name }));
+}
+
+/** Every assignment, grouped by employee — for the assignments table, so it can show each row's
+ * current picks without an N+1 query per row. Same convention as getBrandAccessMap. */
+export async function getClientAssignmentMap(): Promise<Map<string, string[]>> {
+  const sql = getDb();
+  const rows = await sql`select user_id, client_id from account_manager_assignments`;
+  const map = new Map<string, string[]>();
+  for (const r of rows as any[]) {
+    const list = map.get(r.user_id) ?? [];
+    list.push(r.client_id);
+    map.set(r.user_id, list);
   }
+  return map;
+}
 
-  await sql`delete from account_manager_assignments`;
-  for (const pair of pairs) {
-    await sql`insert into account_manager_assignments (user_id, client_id) values (${pair.userId}, ${pair.clientId})`;
+/** Replace-all for one employee only — assigns them to every client picked, granting them all of
+ * that client's brands (this is the coarse, whole-client grant; the individual-brand grant on
+ * Manage Users' "Add Brand" picker, user_brand_access, is the fine-grained alternative — an
+ * employee's actual visible-brands list unions both). */
+export async function setClientAssignmentsForUser(userId: string, clientIds: string[]): Promise<void> {
+  const sql = getDb();
+  await sql`delete from account_manager_assignments where user_id = ${userId}`;
+  for (const clientId of clientIds) {
+    await sql`insert into account_manager_assignments (user_id, client_id) values (${userId}, ${clientId}) on conflict do nothing`;
   }
 }
