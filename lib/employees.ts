@@ -28,3 +28,12 @@ export async function getEmployees(): Promise<Employee[]> {
     assignedClientNames: r.client_names as string[],
   }));
 }
+
+/** Local row + assignments only — does not revoke the person's Clerk account itself. Shared by
+ * /internal/employees and the unified "Manage users" table on /internal (removeManagedUser in
+ * lib/user-approvals.ts branches to this for account_manager rows). */
+export async function removeEmployeeRow(userId: string): Promise<void> {
+  const sql = getDb();
+  await sql`delete from account_manager_assignments where user_id = ${userId}`;
+  await sql`delete from users where id = ${userId} and role = 'account_manager'`;
+}

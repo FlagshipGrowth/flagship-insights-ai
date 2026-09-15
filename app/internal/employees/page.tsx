@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { clerkClient } from "@clerk/nextjs/server";
 import { getUserContext, isOwner } from "@/lib/user-context";
-import { getEmployees } from "@/lib/employees";
+import { getEmployees, removeEmployeeRow } from "@/lib/employees";
 import { getDb } from "@/lib/db";
 import { Badge } from "@/components/Badge";
 
@@ -45,11 +45,9 @@ async function removeEmployee(formData: FormData) {
   const userId = formData.get("userId") as string;
   if (!userId) return;
 
-  const sql = getDb();
-  // Local row + assignments only — does not revoke the person's Clerk account itself.
-  await sql`delete from account_manager_assignments where user_id = ${userId}`;
-  await sql`delete from users where id = ${userId} and role = 'account_manager'`;
+  await removeEmployeeRow(userId);
   revalidatePath("/internal/employees");
+  revalidatePath("/internal");
 }
 
 export default async function EmployeesPage() {

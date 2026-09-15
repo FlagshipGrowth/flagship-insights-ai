@@ -4,12 +4,15 @@ import { UserButton } from "@clerk/nextjs";
 import { getUserContext, isInternalStaff, isOwner } from "@/lib/user-context";
 import { getAllBrandsWithClients, getAssignedBrandsWithClients } from "@/lib/metrics";
 import { getOpenTaskCountsByTeam } from "@/lib/tasks";
-import { getPendingUsersCount, getClientUsers, approveUser } from "@/lib/user-approvals";
+import { getPendingUsersCount, getManagedUsers, approveUser, removeManagedUser } from "@/lib/user-approvals";
 import { deleteBrand as deleteBrandRow } from "@/lib/brands";
 import { getAssignmentData, saveAssignments } from "@/lib/assignments";
+import { getDb } from "@/lib/db";
+import { seedOnboardingTasks } from "@/lib/onboarding-tasks";
 import { TEAMS } from "@/lib/teams";
 import { Badge } from "@/components/Badge";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { AddBrandModal } from "@/components/AddBrandModal";
 
 async function deleteBrandAction(brandId: string) {
   "use server";
@@ -24,6 +27,32 @@ async function approveUserAction(userId: string) {
   const ctx = await getUserContext();
   if (!ctx || !isOwner(ctx)) return;
   await approveUser(userId);
+  revalidatePath("/internal");
+}
+
+async function removeManagedUserAction(userId: string, role: string) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isOwner(ctx)) return;
+  await removeManagedUser(userId, role);
+  revalidatePath("/internal");
+}
+
+async function addBrandsToClientAction(clientId: string, formData: FormData) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isOwner(ctx)) return;
+
+  const names = (formData.getAll("brandName") as string[]).map((n) => n.trim()).filter(Boolean);
+  if (names.length === 0) return;
+
+  const sql = getDb();
+  for (const name of names) {
+    const newBrand = await sql`
+      insert into brands (client_id, name, channels_enabled) values (${clientId}, ${name}, '{}') returning id
+    `;
+    await seedOnboardingTasks(newBrand[0].id);
+  }
   revalidatePath("/internal");
 }
 
@@ -61,7 +90,7 @@ export default async function InternalPage() {
   const openCountsByTeam = isOwner(ctx) ? await getOpenTaskCountsByTeam() : null;
   const pendingUsersCount = isOwner(ctx) ? await getPendingUsersCount() : 0;
   const owner = isOwner(ctx);
-  const clientUsers = owner ? await getClientUsers() : [];
+  const managedUsers = owner ? await getManagedUsers() : [];
   const assignmentData = owner ? await getAssignmentData() : null;
 
   return (
@@ -172,13 +201,13 @@ export default async function InternalPage() {
           <h2 style={{ marginBottom: 8 }}>Manage users</h2>
           <p style={{ color: "var(--muted)", marginTop: 0 }}>
             <small>
-              A client sign-up can't be approved until their client has at least one brand — brands are created here,
-              never automatically at sign-up.
+              Client sign-ups and employees together. A client sign-up can't be approved until their client has at
+              least one brand — brands are created here, never automatically at sign-up.
             </small>
           </p>
 
-          {clientUsers.length === 0 ? (
-            <p>No client users yet.</p>
+          {managedUsers.length === 0 ? (
+            <p>No users yet.</p>
           ) : (
             <div className="card" style={{ padding: 0, overflow: "hidden" }}>
               <div style={{ maxHeight: 400, overflowY: "auto" }}>
@@ -192,29 +221,60 @@ export default async function InternalPage() {
                       <th style={{ position: "sticky", top: 0, background: "#fff" }}>Brands</th>
                       <th style={{ position: "sticky", top: 0, background: "#fff" }}></th>
                       <th style={{ position: "sticky", top: 0, background: "#fff" }}></th>
+                      <th style={{ position: "sticky", top: 0, background: "#fff" }}></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {clientUsers.map((u) => {
+                    {managedUsers.map((u) => {
+                      const isClientUser = u.role === "client_owner" || u.role === "client_teammate";
                       const boundApprove = approveUserAction.bind(null, u.id);
+                      const boundRemove = removeManagedUserAction.bind(null, u.id, u.role);
+                      const boundAddBrands = u.clientId ? addBrandsToClientAction.bind(null, u.clientId) : null;
                       return (
                         <tr key={u.id}>
                           <td>{u.email}</td>
                           <td>{u.clientName ?? "—"}</td>
-                          <td>{u.role.replace("_", " ")}</td>
+                          <td>{u.role === "account_manager" ? "employee" : u.role.replace("_", " ")}</td>
                           <td>
-                            <Badge variant={u.status}>{u.status}</Badge>
+                            {isClientUser ? (
+                              <Badge variant={u.status}>{u.status}</Badge>
+                            ) : u.hasClerkAccount ? (
+                              <Badge variant="approved">active</Badge>
+                            ) : (
+                              <Badge variant="pending">invited</Badge>
+                            )}
                           </td>
-                          <td>{u.brandCount > 0 ? u.brandCount : <Badge variant="pending">No brand yet</Badge>}</td>
                           <td>
-                            <a href={`/internal/brands/new?clientId=${u.clientId ?? ""}`}>Add Brand</a>
+                            {isClientUser ? (
+                              u.brandCount > 0 ? (
+                                u.brandCount
+                              ) : (
+                                <Badge variant="pending">No brand yet</Badge>
+                              )
+                            ) : (
+                              "—"
+                            )}
                           </td>
                           <td>
-                            {u.status === "pending" && u.brandCount > 0 && (
+                            {boundAddBrands && <AddBrandModal clientName={u.clientName ?? u.email} action={boundAddBrands} />}
+                          </td>
+                          <td>
+                            {isClientUser && u.status === "pending" && u.brandCount > 0 && (
                               <form action={boundApprove}>
                                 <button type="submit">Approve</button>
                               </form>
                             )}
+                          </td>
+                          <td>
+                            <form action={boundRemove}>
+                              <ConfirmButton
+                                className="secondary"
+                                style={{ borderColor: "#DC2626", color: "#DC2626" }}
+                                confirmText={`Remove ${u.email}'s access entirely? This cannot be undone.`}
+                              >
+                                Remove
+                              </ConfirmButton>
+                            </form>
                           </td>
                         </tr>
                       );

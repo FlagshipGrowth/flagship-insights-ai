@@ -1,6 +1,8 @@
+import { clerkClient } from "@clerk/nextjs/server";
 import { getDb } from "./db";
 import { seedOnboardingTasks } from "./onboarding-tasks";
 import { postSlackMessage } from "./slack";
+import { getEmployees, removeEmployeeRow } from "./employees";
 
 export interface PendingUser {
   id: string;
@@ -82,6 +84,69 @@ export async function getClientUsers(): Promise<ClientUser[]> {
   }));
 }
 
+export interface ManagedUser {
+  id: string;
+  email: string;
+  role: string;
+  /** Client rows: their real sign-up approval status. Employee rows: always "approved" — an
+   * owner-invited employee never queues through the sign-up approval flow. */
+  status: "pending" | "approved";
+  clientId: string | null;
+  /** Client rows: their own client's name. Employee rows: their assigned clients, joined — reuses
+   * the same column for a single "who does this relate to" table cell either way. */
+  clientName: string | null;
+  brandCount: number;
+  /** Employee rows only — whether they've actually signed in via Clerk yet. Always true for
+   * client rows (they only appear at all via a real sign-up). */
+  hasClerkAccount: boolean;
+}
+
+/** Client users + employees together, for the unified "Manage users" section on /internal — one
+ * user directory instead of a separate employee list. Client-only concepts (brandCount, the
+ * approval gate) are blank/inert for employee rows. */
+export async function getManagedUsers(): Promise<ManagedUser[]> {
+  const [clientUsers, employees] = await Promise.all([getClientUsers(), getEmployees()]);
+
+  const merged: ManagedUser[] = [
+    ...clientUsers.map((u) => ({
+      id: u.id,
+      email: u.email,
+      role: u.role,
+      status: u.status,
+      clientId: u.clientId,
+      clientName: u.clientName,
+      brandCount: u.brandCount,
+      hasClerkAccount: true,
+    })),
+    ...employees.map((e) => ({
+      id: e.id,
+      email: e.email,
+      role: "account_manager",
+      status: "approved" as const,
+      clientId: null,
+      clientName: e.assignedClientNames.length > 0 ? e.assignedClientNames.join(", ") : null,
+      brandCount: 0,
+      hasClerkAccount: e.hasClerkAccount,
+    })),
+  ];
+
+  merged.sort((a, b) => {
+    if ((a.status === "pending") !== (b.status === "pending")) return a.status === "pending" ? -1 : 1;
+    return a.email.localeCompare(b.email);
+  });
+  return merged;
+}
+
+/** Dispatches to the right removal for whichever kind of user this is — the "Manage users" table
+ * has one Remove button for both client users and employees. */
+export async function removeManagedUser(userId: string, role: string): Promise<void> {
+  if (role === "account_manager") {
+    await removeEmployeeRow(userId);
+  } else {
+    await removeClientUser(userId);
+  }
+}
+
 /** Approving is also the onboarding trigger: seedOnboardingTasks used to fire immediately at
  * organization.created, before any approval — moved here so the checklist only appears once an
  * owner has actually let the client in. Requires the client to already have at least one brand
@@ -116,4 +181,29 @@ export async function approveUser(userId: string): Promise<{ ok: boolean; error?
   }
 
   return { ok: true };
+}
+
+/** Removes a client user entirely — their Clerk org membership (if any) and the local row.
+ * Caller is responsible for the isOwner() gate (both call sites already check before invoking
+ * this), same convention as deleteBrand. */
+export async function removeClientUser(userId: string): Promise<void> {
+  const sql = getDb();
+  const rows = await sql`select clerk_user_id, client_id from users where id = ${userId}`;
+  if (rows.length === 0) return;
+  const { clerk_user_id: clerkUserId, client_id: clientId } = rows[0];
+
+  if (clerkUserId && clientId) {
+    const client = await sql`select clerk_org_id from clients where id = ${clientId}`;
+    const clerkOrgId = client[0]?.clerk_org_id;
+    if (clerkOrgId) {
+      const clerk = await clerkClient();
+      try {
+        await clerk.organizations.deleteOrganizationMembership({ organizationId: clerkOrgId, userId: clerkUserId });
+      } catch {
+        // Already gone on Clerk's side (or never had a membership) — still remove the local row.
+      }
+    }
+  }
+
+  await sql`delete from users where id = ${userId}`;
 }
