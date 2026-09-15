@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getUserContext } from "@/lib/user-context";
+import { getUserContext, isOwner } from "@/lib/user-context";
 import { getAllClients } from "@/lib/brands";
 import { getAccountManagerUsers } from "@/lib/staff";
 import { getDb } from "@/lib/db";
@@ -8,7 +8,7 @@ import { seedOnboardingTasks } from "@/lib/onboarding-tasks";
 async function createBrand(formData: FormData) {
   "use server";
   const ctx = await getUserContext();
-  if (!ctx || ctx.role !== "internal_admin") return;
+  if (!ctx || !isOwner(ctx)) return;
 
   const brandName = (formData.get("brandName") as string)?.trim();
   const clientId = (formData.get("clientId") as string) || null;
@@ -53,7 +53,7 @@ async function createBrand(formData: FormData) {
 export default async function NewBrandPage() {
   const ctx = await getUserContext();
   if (!ctx) redirect("/onboarding");
-  if (ctx.role !== "internal_admin") redirect("/internal");
+  if (!isOwner(ctx)) redirect("/internal");
 
   const clients = await getAllClients();
   const accountManagers = await getAccountManagerUsers();

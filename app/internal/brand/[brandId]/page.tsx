@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { clerkClient } from "@clerk/nextjs/server";
-import { getUserContext, isInternalStaff, canStaffAccessBrand } from "@/lib/user-context";
+import { getUserContext, isInternalStaff, isOwner, canStaffAccessBrand } from "@/lib/user-context";
 import { getBrandMetrics, getBrandMetricsTimeSeries, PERIODS, type Period } from "@/lib/metrics";
 import { getBrandName } from "@/lib/seo";
 import { getBrandReportLinks, getInventoryPreview, getReconciliationSummary } from "@/lib/reports";
@@ -15,7 +15,7 @@ import {
   TASK_SORTS,
   type TaskSort,
 } from "@/lib/tasks";
-import { getBrandSlackChannelId, getBrandClientInfo } from "@/lib/brands";
+import { getBrandSlackChannelId, getBrandClientInfo, deleteBrand as deleteBrandRow } from "@/lib/brands";
 import { getUsersWithBrandAccess } from "@/lib/staff";
 import { TEAMS, resolveAssignee } from "@/lib/teams";
 import { TASK_PRIORITIES, TASK_PRIORITY_LABELS } from "@/lib/task-priority";
@@ -191,7 +191,7 @@ async function updateSlackChannel(brandId: string, formData: FormData) {
 async function addBrandUser(brandId: string, formData: FormData) {
   "use server";
   const ctx = await getUserContext();
-  if (!ctx || ctx.role !== "internal_admin") return;
+  if (!ctx || !isOwner(ctx)) return;
 
   const email = (formData.get("email") as string)?.trim().toLowerCase();
   const role = formData.get("role") as string;
@@ -224,7 +224,7 @@ async function addBrandUser(brandId: string, formData: FormData) {
 async function deleteBrandUser(brandId: string, formData: FormData) {
   "use server";
   const ctx = await getUserContext();
-  if (!ctx || ctx.role !== "internal_admin") return;
+  if (!ctx || !isOwner(ctx)) return;
 
   const userId = formData.get("userId") as string;
   const client = await getBrandClientInfo(brandId);
@@ -258,15 +258,12 @@ async function deleteBrandUser(brandId: string, formData: FormData) {
   revalidatePath(`/internal/brand/${brandId}`);
 }
 
-async function deleteBrand(brandId: string, formData: FormData) {
+async function deleteBrand(brandId: string) {
   "use server";
   const ctx = await getUserContext();
-  if (!ctx || ctx.role !== "internal_admin") return;
+  if (!ctx || !isOwner(ctx)) return;
 
-  const sql = getDb();
-  // Cascades to every FK'd table (tasks, connections, metrics_daily, task_comments via tasks,
-  // etc.) via existing `on delete cascade` constraints — no manual cleanup needed here.
-  await sql`delete from brands where id = ${brandId}`;
+  await deleteBrandRow(brandId);
   redirect("/internal");
 }
 
@@ -313,7 +310,7 @@ export default async function BrandHubPage({
     commentsByTask.get(c.taskId)!.push(c);
   }
   const slackChannelId = await getBrandSlackChannelId(brandId);
-  const isAdmin = ctx.role === "internal_admin";
+  const isAdmin = isOwner(ctx);
   const clientInfo = isAdmin ? await getBrandClientInfo(brandId) : null;
   const brandUsers = clientInfo ? await getUsersWithBrandAccess(clientInfo.clientId) : [];
   const activeTasks = tasks.filter((t) => t.status !== "done");

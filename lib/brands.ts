@@ -46,3 +46,12 @@ export async function getAllClients(): Promise<{ id: string; name: string }[]> {
   const rows = await sql`select id, name from clients order by name`;
   return rows.map((r: any) => ({ id: r.id, name: r.name }));
 }
+
+/** Hard delete — cascades to every FK'd table (tasks, connections, metrics_daily, task_comments
+ * via tasks, etc.) via existing `on delete cascade` constraints, no manual cleanup needed. Shared
+ * by /internal/brand/[brandId] (delete from within the brand hub) and /internal (delete straight
+ * from the "Choose a brand" list) — both gate this behind isOwner() themselves. */
+export async function deleteBrand(brandId: string): Promise<void> {
+  const sql = getDb();
+  await sql`delete from brands where id = ${brandId}`;
+}
