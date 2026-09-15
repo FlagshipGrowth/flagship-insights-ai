@@ -16,6 +16,7 @@ const ICONS = {
   check: "M5 12l5 5L20 7",
   shield: "M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3ZM9 12l2 2 4-4",
   eye: "M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12ZM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z",
+  spark: "M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8",
 };
 
 interface NavItem {
@@ -29,6 +30,7 @@ export function InternalSidebar({ owner, pendingUsersCount, email }: { owner: bo
   const ownerItems: NavItem[] = [
     { href: "/internal", label: "Home", icon: "home" },
     { href: "/internal/marketing", label: "Marketing Efforts", icon: "chart" },
+    { href: "/internal/agents", label: "Agents", icon: "spark" },
     { href: "/internal/crm", label: "CRM", icon: "briefcase" },
     { href: "/internal/employees", label: "Employees", icon: "users" },
     { href: "/internal/tasks", label: "Tasks", icon: "check" },
@@ -43,13 +45,7 @@ export function InternalSidebar({ owner, pendingUsersCount, email }: { owner: bo
 
   return (
     <aside className="app-sidebar">
-      <div className="app-sidebar-workspace">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/icon-mark-dark.svg" alt="" width={18} height={18} />
-        <span>Flagship Growth</span>
-      </div>
-
-      <nav className="app-sidebar-nav">
+      <nav className="app-sidebar-nav" style={{ marginTop: 8 }}>
         {items.map((item) => (
           <a key={item.href} href={item.href} className="app-sidebar-link">
             <Icon d={ICONS[item.icon]} />

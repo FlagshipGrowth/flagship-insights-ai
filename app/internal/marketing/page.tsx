@@ -7,6 +7,7 @@ import {
   getLastSyncedAt,
   getMarketingRecommendations,
   updateRecommendationStatus,
+  getMarketingCreatives,
 } from "@/lib/marketing";
 import { PERIODS, type Period } from "@/lib/metrics";
 import { MetricsChart } from "@/components/MetricsChart";
@@ -42,11 +43,12 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
   const { period: periodParam } = await searchParams;
   const period = (PERIODS as readonly string[]).includes(periodParam ?? "") ? (periodParam as Period) : "mtd";
 
-  const [series, summary, lastSyncedAt, recommendations] = await Promise.all([
+  const [series, summary, lastSyncedAt, recommendations, creatives] = await Promise.all([
     getAgencyMarketingMetricsSeries(period),
     getAgencyMarketingSummary(period),
     getLastSyncedAt(),
     getMarketingRecommendations(),
+    getMarketingCreatives(),
   ]);
   const openRecommendations = recommendations.filter((r) => r.status === "open");
 
@@ -146,11 +148,55 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
                 ))}
               </div>
 
-              <div className="card">
+              <div className="card" style={{ marginBottom: 28 }}>
                 <MetricsChart series={series} />
               </div>
             </>
           )}
+
+          <section>
+            <h2 style={{ marginBottom: 10 }}>Creative</h2>
+            {creatives.length === 0 ? (
+              <p style={{ color: "var(--muted)" }}>
+                <small>No creative synced yet.</small>
+              </p>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
+                {creatives.map((c) => (
+                  <div key={c.id} className="card" style={{ padding: 0, overflow: "hidden" }}>
+                    {c.hasImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={`/api/marketing/creative-image/${c.id}`}
+                        alt={c.headline ?? c.adName}
+                        style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "cover", display: "block" }}
+                      />
+                    ) : (
+                      <div style={{ width: "100%", aspectRatio: "1 / 1", background: "var(--paper-2)" }} />
+                    )}
+                    <div style={{ padding: "10px 12px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                        <strong style={{ fontSize: "0.82rem", lineHeight: 1.3 }}>{c.headline ?? c.adName}</strong>
+                        <span
+                          className="badge"
+                          style={{
+                            flexShrink: 0,
+                            background: c.status === "ACTIVE" ? "var(--accent-blue)" : "var(--paper-2)",
+                            color: c.status === "ACTIVE" ? "var(--paper)" : "var(--muted)",
+                          }}
+                        >
+                          {c.status.toLowerCase()}
+                        </span>
+                      </div>
+                      <p style={{ margin: "4px 0 0" }}>
+                        <small>{c.adName}</small>
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
 
         <aside className="card" style={{ width: 260, flexShrink: 0 }}>

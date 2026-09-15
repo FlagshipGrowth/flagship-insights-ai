@@ -143,3 +143,80 @@ export async function updateRecommendationStatus(id: string, status: Recommendat
   const sql = getDb();
   await sql`update agency_marketing_recommendations set status = ${status} where id = ${id}`;
 }
+
+export interface MarketingCreative {
+  id: string;
+  metaCreativeId: string;
+  adName: string;
+  headline: string | null;
+  bodyCopy: string | null;
+  status: string;
+  hasImage: boolean;
+  updatedAt: string;
+}
+
+/** Metadata only — image bytes are served separately via getMarketingCreativeImage, so this list
+ * stays cheap even with many creatives. */
+export async function getMarketingCreatives(): Promise<MarketingCreative[]> {
+  const sql = getDb();
+  const rows = await sql`
+    select id, meta_creative_id, ad_name, headline, body_copy, status, (image_data is not null) as has_image, updated_at
+    from agency_marketing_creatives
+    order by (status = 'ACTIVE') desc, updated_at desc
+    limit 50
+  `;
+  return rows.map((r: any) => ({
+    id: r.id,
+    metaCreativeId: r.meta_creative_id,
+    adName: r.ad_name,
+    headline: r.headline,
+    bodyCopy: r.body_copy,
+    status: r.status,
+    hasImage: r.has_image,
+    updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at),
+  }));
+}
+
+export async function getMarketingCreativeImage(id: string): Promise<{ data: Buffer; contentType: string } | null> {
+  const sql = getDb();
+  const rows = await sql`select image_data, image_content_type from agency_marketing_creatives where id = ${id}`;
+  const row = rows[0];
+  if (!row || !row.image_data) return null;
+  return { data: row.image_data, contentType: row.image_content_type ?? "image/jpeg" };
+}
+
+export interface NewCreativeInput {
+  metaCreativeId: string;
+  adName: string;
+  headline?: string | null;
+  bodyCopy?: string | null;
+  status: string;
+  imageBase64?: string | null;
+  imageContentType?: string | null;
+}
+
+/** Upsert used by /api/marketing/creatives — keyed on Meta's own creative id, keeping a single
+ * living row per creative rather than accumulating history. Image bytes are only overwritten when
+ * a new one is supplied, so a metadata-only refresh (e.g. a status flip) doesn't have to
+ * re-upload the image. */
+export async function upsertMarketingCreative(input: NewCreativeInput): Promise<void> {
+  const sql = getDb();
+  if (input.imageBase64) {
+    const buf = Buffer.from(input.imageBase64, "base64");
+    await sql`
+      insert into agency_marketing_creatives (meta_creative_id, ad_name, headline, body_copy, status, image_data, image_content_type, updated_at)
+      values (${input.metaCreativeId}, ${input.adName}, ${input.headline ?? null}, ${input.bodyCopy ?? null}, ${input.status}, ${buf}, ${input.imageContentType ?? "image/jpeg"}, now())
+      on conflict (meta_creative_id) do update set
+        ad_name = excluded.ad_name, headline = excluded.headline, body_copy = excluded.body_copy,
+        status = excluded.status, image_data = excluded.image_data, image_content_type = excluded.image_content_type, updated_at = now()
+    `;
+  } else {
+    await sql`
+      insert into agency_marketing_creatives (meta_creative_id, ad_name, headline, body_copy, status, updated_at)
+      values (${input.metaCreativeId}, ${input.adName}, ${input.headline ?? null}, ${input.bodyCopy ?? null}, ${input.status}, now())
+      on conflict (meta_creative_id) do update set
+        ad_name = excluded.ad_name, headline = excluded.headline, body_copy = excluded.body_copy,
+        status = excluded.status, updated_at = now()
+    `;
+  }
+}

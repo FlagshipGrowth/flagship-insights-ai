@@ -9,6 +9,8 @@ const isPublicRoute = createRouteMatcher([
   "/api/leads/from-contact-form", // called cross-origin from flagshipgrowth.com's contact form
   "/api/marketing/sync", // verified via its own shared-secret check, not Clerk — see route.ts
   "/api/marketing/recommendations", // same shared-secret check as /api/marketing/sync
+  "/api/marketing/creatives", // same shared-secret check as /api/marketing/sync
+  "/api/marketing/creative-image/(.*)", // meant to be embeddable as a plain <img src> with no auth
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
