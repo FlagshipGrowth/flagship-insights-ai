@@ -115,6 +115,14 @@ export async function updateLeadStage(leadId: string, stage: string): Promise<vo
   await sql`update leads set stage = ${stage}, updated_at = now() where id = ${leadId}`;
 }
 
+/** For the New-tab triage table's "move selected to..." bulk action — moving many leads out of
+ * New at once instead of one at a time. */
+export async function bulkUpdateLeadStage(leadIds: string[], stage: string): Promise<void> {
+  if (!(LEAD_STAGES as readonly string[]).includes(stage) || leadIds.length === 0) return;
+  const sql = getDb();
+  await sql`update leads set stage = ${stage}, updated_at = now() where id = any(${leadIds}::uuid[])`;
+}
+
 export async function deleteLead(leadId: string): Promise<void> {
   const sql = getDb();
   await sql`delete from leads where id = ${leadId}`;
@@ -123,4 +131,12 @@ export async function deleteLead(leadId: string): Promise<void> {
 export async function setLeadHot(leadId: string, isHot: boolean): Promise<void> {
   const sql = getDb();
   await sql`update leads set is_hot = ${isHot} where id = ${leadId}`;
+}
+
+/** Flips in one statement — callers that don't already have the current value in hand (e.g. the
+ * New-tab triage table, which calls this directly rather than via a per-row bound action) don't
+ * need to look it up first. */
+export async function toggleLeadHot(leadId: string): Promise<void> {
+  const sql = getDb();
+  await sql`update leads set is_hot = not is_hot where id = ${leadId}`;
 }
