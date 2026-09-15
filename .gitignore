@@ -8,3 +8,4 @@ __pycache__/
 out/
 *.tsbuildinfo
 .marketing-sync-secret
+.tiktok-shop-sync-secret

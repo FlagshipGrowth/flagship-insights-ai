@@ -15,7 +15,8 @@ import {
   TASK_SORTS,
   type TaskSort,
 } from "@/lib/tasks";
-import { getBrandSlackChannelId, getBrandClientInfo, deleteBrand as deleteBrandRow } from "@/lib/brands";
+import { getBrandSlackChannelId, getBrandChannelsEnabled, getBrandClientInfo, deleteBrand as deleteBrandRow } from "@/lib/brands";
+import { getTikTokShopConnection, saveTikTokShopConnection } from "@/lib/brand-strategy";
 import { getUsersWithBrandAccess } from "@/lib/staff";
 import { TEAMS, resolveAssignee } from "@/lib/teams";
 import { TASK_PRIORITIES, TASK_PRIORITY_LABELS } from "@/lib/task-priority";
@@ -188,6 +189,16 @@ async function updateSlackChannel(brandId: string, formData: FormData) {
   revalidatePath(`/internal/brand/${brandId}`);
 }
 
+async function updateTikTokShopConnection(brandId: string, formData: FormData) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isInternalStaff(ctx)) return;
+  if (!(await canStaffAccessBrand(ctx, brandId))) return;
+
+  await saveTikTokShopConnection(brandId, formData);
+  revalidatePath(`/internal/brand/${brandId}`);
+}
+
 async function addBrandUser(brandId: string, formData: FormData) {
   "use server";
   const ctx = await getUserContext();
@@ -310,6 +321,8 @@ export default async function BrandHubPage({
     commentsByTask.get(c.taskId)!.push(c);
   }
   const slackChannelId = await getBrandSlackChannelId(brandId);
+  const channelsEnabled = await getBrandChannelsEnabled(brandId);
+  const tiktokConnection = channelsEnabled.includes("tiktok_shop") ? await getTikTokShopConnection(brandId) : null;
   const isAdmin = isOwner(ctx);
   const clientInfo = isAdmin ? await getBrandClientInfo(brandId) : null;
   const brandUsers = clientInfo ? await getUsersWithBrandAccess(clientInfo.clientId) : [];
@@ -331,6 +344,7 @@ export default async function BrandHubPage({
   const boundDeleteTask = deleteTask.bind(null, brandId);
   const boundAddComment = addTaskComment.bind(null, brandId);
   const boundUpdateSlackChannel = updateSlackChannel.bind(null, brandId);
+  const boundUpdateTikTokShopConnection = updateTikTokShopConnection.bind(null, brandId);
   const boundAddBrandUser = addBrandUser.bind(null, brandId);
   const boundDeleteBrandUser = deleteBrandUser.bind(null, brandId);
   const boundDeleteBrand = deleteBrand.bind(null, brandId);
@@ -635,6 +649,62 @@ export default async function BrandHubPage({
           </div>
         </div>
       </details>
+
+      {tiktokConnection && (
+        <details style={{ marginTop: 24 }}>
+          <summary style={{ cursor: "pointer", fontWeight: 600 }}>TikTok Shop</summary>
+          <div style={{ marginTop: 12 }}>
+            <p>
+              <small>
+                <span
+                  className="status-chip"
+                  style={{ marginRight: 12 }}
+                >
+                  <span className={`status-dot ${tiktokConnection.eukaBrandId ? "status-ok" : "status-stale"}`} />
+                  {tiktokConnection.eukaBrandId ? "Connected" : "Not connected yet"}
+                </span>
+                <a href={`/internal/brand/${brandId}/tiktok-strategy`}>Edit strategy brief →</a>
+              </small>
+            </p>
+            <div className="card" style={{ maxWidth: 480 }}>
+              <form action={boundUpdateTikTokShopConnection} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <label>
+                  Euka brand ID
+                  <br />
+                  <input name="eukaBrandId" defaultValue={tiktokConnection.eukaBrandId ?? ""} style={{ width: "100%" }} />
+                </label>
+                <label>
+                  Euka store ID(s)
+                  <br />
+                  <input
+                    name="eukaStoreIds"
+                    defaultValue={tiktokConnection.eukaStoreIds?.join(", ") ?? ""}
+                    placeholder="Comma-separated if more than one region"
+                    style={{ width: "100%" }}
+                  />
+                </label>
+                <label>
+                  Reacher shop ID
+                  <br />
+                  <input name="reacherShopId" defaultValue={tiktokConnection.reacherShopId ?? ""} style={{ width: "100%" }} />
+                </label>
+                <label>
+                  Plan tier
+                  <br />
+                  <select name="planTier" defaultValue={tiktokConnection.planTier ?? ""} style={{ width: "100%" }}>
+                    <option value="">Unknown</option>
+                    <option value="starter">Starter</option>
+                    <option value="growth">Growth</option>
+                  </select>
+                </label>
+                <button type="submit" style={{ alignSelf: "flex-start" }}>
+                  Save
+                </button>
+              </form>
+            </div>
+          </div>
+        </details>
+      )}
 
       {isAdmin && clientInfo && (
         <details style={{ marginTop: 24 }}>

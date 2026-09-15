@@ -6,6 +6,12 @@ export async function getBrandSlackChannelId(brandId: string): Promise<string | 
   return rows[0]?.slack_channel_id ?? null;
 }
 
+export async function getBrandChannelsEnabled(brandId: string): Promise<string[]> {
+  const sql = getDb();
+  const rows = await sql`select channels_enabled from brands where id = ${brandId}`;
+  return (rows[0]?.channels_enabled as string[]) ?? [];
+}
+
 /** Reverse of getBrandSlackChannelId — which brand a Slack channel is mapped to, for commands
  * (like /seo-listing) that need to resolve "this channel" to a brand without a client: prefix. */
 export async function getBrandBySlackChannelId(channelId: string): Promise<{ id: string; name: string } | null> {

@@ -95,6 +95,19 @@ export default async function AgentsPage() {
               { label: "Output", value: "Draft in a shared Google Sheet, reviewed and published by an AM" },
             ]}
           />
+          <AgentCard
+            name="TikTok Shop Strategist"
+            status="Active (reporting only)"
+            statusVariant="medium"
+            description="Pulls TikTok Shop performance (GMV, affiliate funnel, shop health) from each brand's Euka and Reacher accounts into that brand's dashboard, alongside a structured strategy brief the account team maintains (audience, creator fit, economics, guardrail envelope). Outreach automation, creator messaging, and A/B testing are built into the design but not live — no campaign, message, or spend action happens without a separate sign-off, per the module spec."
+            facts={[
+              { label: "Scope", value: "TUBR, Smood Sweets, Jax Athletics — SuperMush explicitly excluded" },
+              { label: "Trigger", value: "Scheduled — daily metrics sync" },
+              { label: "Blocked on", value: "Euka connections for these 3 brands (only SuperMush is connected today)" },
+            ]}
+            href="/internal"
+            linkLabel="Open a brand's page →"
+          />
         </div>
       </section>
 

@@ -26,6 +26,12 @@ const METRIC_LABELS: Record<string, string> = {
   link_click: "Link Clicks",
   lead: "Leads",
   cost_per_lead: "Cost per Lead",
+  gmv: "GMV",
+  affiliate_gmv: "Affiliate GMV",
+  video_gmv: "Video GMV",
+  live_gmv: "Live GMV",
+  shop_health_score: "Shop Health Score",
+  active_creators: "Active Creators",
 };
 
 // Preferred display order — sales and ad spend first since those are what people look for.
@@ -46,12 +52,22 @@ const METRIC_ORDER = [
   "link_click",
   "lead",
   "cost_per_lead",
+  "gmv",
+  "affiliate_gmv",
+  "video_gmv",
+  "live_gmv",
+  "shop_health_score",
+  "active_creators",
 ];
 
 const CHANNEL_COLORS = ["#2447FF", "#D6FF3F", "#6B6558", "#DC2626"];
 
 function formatValue(metricKey: string, value: number): string {
-  if (["sales", "ad_spend", "ppc_revenue", "organic_revenue", "amount_spent", "cost_per_lead"].includes(metricKey)) {
+  if (
+    ["sales", "ad_spend", "ppc_revenue", "organic_revenue", "amount_spent", "cost_per_lead", "gmv", "affiliate_gmv", "video_gmv", "live_gmv"].includes(
+      metricKey
+    )
+  ) {
     return `$${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
   }
   if (["tacos", "ctr", "cvr"].includes(metricKey)) return `${value.toFixed(1)}%`;

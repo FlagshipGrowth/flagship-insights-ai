@@ -3,6 +3,32 @@ import { getDb } from "./db";
 export type Period = "daily" | "mtd" | "ytd" | "lifetime";
 export const PERIODS: Period[] = ["daily", "mtd", "ytd", "lifetime"];
 
+export interface BrandMetricInput {
+  brandId: string;
+  channel: string;
+  date: string;
+  metric_key: string;
+  value: number;
+}
+
+/** Brand-scoped counterpart to lib/marketing.ts's upsertAgencyMarketingMetrics — same
+ * upsert-on-conflict shape, targeting metrics_daily (its own primary key is already
+ * (brand_id, channel, date, metric_key), so this is the natural conflict target). Used by
+ * /api/tiktok-shop/sync (and any future app-tree channel sync route) — the existing Amazon
+ * nightly sync writes via netlify/functions/lib/db.ts's upsertMetrics instead, a separate
+ * function in the Netlify Functions bundle tree, not this one. */
+export async function upsertBrandMetrics(rows: BrandMetricInput[]): Promise<void> {
+  if (rows.length === 0) return;
+  const sql = getDb();
+  for (const r of rows) {
+    await sql`
+      insert into metrics_daily (brand_id, channel, date, metric_key, value)
+      values (${r.brandId}, ${r.channel}, ${r.date}, ${r.metric_key}, ${r.value})
+      on conflict (brand_id, channel, date, metric_key) do update set value = excluded.value
+    `;
+  }
+}
+
 // Daily/MTD/YTD/Lifetime are all just date-range filters on metrics_daily (SPEC.md §5) —
 // no per-view special casing.
 function dateRangeFor(period: Period): { from: string; to: string } {
