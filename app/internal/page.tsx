@@ -240,12 +240,18 @@ export default async function InternalPage() {
                             )}
                           </td>
                           <td>
-                            <AddBrandModal
-                              userLabel={u.email}
-                              brands={allBrands}
-                              selectedIds={selectedBrandIds}
-                              action={boundSetBrandAccess}
-                            />
+                            {isClientUser ? (
+                              <AddBrandModal
+                                userLabel={u.email}
+                                brands={allBrands}
+                                selectedIds={selectedBrandIds}
+                                action={boundSetBrandAccess}
+                              />
+                            ) : (
+                              <a href="/internal/assignments" style={{ fontSize: "0.85rem" }}>
+                                Assign clients →
+                              </a>
+                            )}
                           </td>
                           <td>
                             {isClientUser && u.status === "pending" && u.brandCount > 0 && (
