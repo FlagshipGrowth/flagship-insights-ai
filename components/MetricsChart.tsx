@@ -19,6 +19,13 @@ const METRIC_LABELS: Record<string, string> = {
   tacos: "TACoS",
   ctr: "CTR",
   cvr: "CVR",
+  amount_spent: "Spend",
+  impressions: "Impressions",
+  clicks: "Clicks",
+  reach: "Reach",
+  link_click: "Link Clicks",
+  lead: "Leads",
+  cost_per_lead: "Cost per Lead",
 };
 
 // Preferred display order — sales and ad spend first since those are what people look for.
@@ -32,13 +39,20 @@ const METRIC_ORDER = [
   "tacos",
   "ctr",
   "cvr",
+  "amount_spent",
+  "impressions",
+  "clicks",
+  "reach",
+  "link_click",
+  "lead",
+  "cost_per_lead",
 ];
 
 const CHANNEL_COLORS = ["#2447FF", "#D6FF3F", "#6B6558", "#DC2626"];
 
 function formatValue(metricKey: string, value: number): string {
-  if (["sales", "ad_spend", "ppc_revenue", "organic_revenue"].includes(metricKey)) {
-    return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  if (["sales", "ad_spend", "ppc_revenue", "organic_revenue", "amount_spent", "cost_per_lead"].includes(metricKey)) {
+    return `$${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
   }
   if (["tacos", "ctr", "cvr"].includes(metricKey)) return `${value.toFixed(1)}%`;
   if (metricKey === "roas") return `${value.toFixed(2)}x`;

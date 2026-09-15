@@ -7,6 +7,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/slack(.*)", // verified via its own Slack signature check, not Clerk — see lib/slack.ts
   "/api/clients/(.*)/logo", // meant to be embeddable as a plain <img src> with no auth
   "/api/leads/from-contact-form", // called cross-origin from flagshipgrowth.com's contact form
+  "/api/marketing/sync", // verified via its own shared-secret check, not Clerk — see route.ts
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
