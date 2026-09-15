@@ -86,6 +86,7 @@ export default async function InternalPage() {
             <>
               <ActionCard href="/internal/brands/new" title="Add new brand" subtitle="Set up a brand for a client" />
               <ActionCard href="/internal/employees" title="Manage employees" subtitle="Invite staff, assign clients" />
+              <ActionCard href="/internal/crm" title="CRM" subtitle="New-business sales pipeline" />
               <ActionCard
                 href="/internal/approvals"
                 title={
