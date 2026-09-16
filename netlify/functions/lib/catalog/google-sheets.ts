@@ -24,7 +24,7 @@ function getServiceAccountCredentials(): { clientEmail: string; privateKey: stri
 /** Mints a short-lived access token for the catalog-sync service account via the JWT bearer
  * flow (RFC 7523), hand-rolled with node:crypto — this is the only Google API this project
  * talks to, so it doesn't warrant pulling in google-auth-library/googleapis. */
-async function getAccessToken(): Promise<string> {
+export async function getAccessToken(): Promise<string> {
   const { clientEmail, privateKey } = getServiceAccountCredentials();
   const now = Math.floor(Date.now() / 1000);
 

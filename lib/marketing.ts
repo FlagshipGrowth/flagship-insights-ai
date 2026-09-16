@@ -8,9 +8,12 @@ function dateRangeFor(period: Period): { from: string; to: string } {
   const to = now.toISOString().slice(0, 10);
   let from: string;
   switch (period) {
-    case "daily":
-      from = to;
+    case "weekly": {
+      const weekAgo = new Date(now);
+      weekAgo.setDate(weekAgo.getDate() - 6);
+      from = weekAgo.toISOString().slice(0, 10);
       break;
+    }
     case "mtd":
       from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
       break;

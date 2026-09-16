@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { clerkClient } from "@clerk/nextjs/server";
 import { getUserContext, isInternalStaff, isOwner, canStaffAccessBrand } from "@/lib/user-context";
-import { getBrandMetrics, getBrandMetricsTimeSeries, PERIODS, type Period } from "@/lib/metrics";
+import { getBrandMetrics, getBrandPerformanceTiles, getBrandMarketplaceChannels, getBrandsForClient, brandHasSellerise, PERIODS, type Period } from "@/lib/metrics";
 import { getBrandName } from "@/lib/seo";
 import { getBrandReportLinks, getInventoryPreview, getReconciliationSummary } from "@/lib/reports";
 import {
@@ -18,12 +18,13 @@ import {
 import { getBrandSlackChannelId, getBrandChannelsEnabled, getBrandClientInfo, deleteBrand as deleteBrandRow } from "@/lib/brands";
 import { getTikTokShopConnection, saveTikTokShopConnection } from "@/lib/brand-strategy";
 import { getBrandRecommendations, updateBrandRecommendationStatus } from "@/lib/brand-recommendations";
+import { getBrandForecast } from "@/lib/forecasts";
 import { getUsersWithBrandAccess } from "@/lib/staff";
 import { TEAMS, resolveAssignee } from "@/lib/teams";
 import { TASK_PRIORITIES, TASK_PRIORITY_LABELS } from "@/lib/task-priority";
 import { getDb } from "@/lib/db";
 import { Badge } from "@/components/Badge";
-import { MetricsChart } from "@/components/MetricsChart";
+import { PerformanceTiles } from "@/components/PerformanceTiles";
 import { InventoryPreviewCard } from "@/components/InventoryPreviewCard";
 import { ReconciliationPreviewCard } from "@/components/ReconciliationPreviewCard";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -293,7 +294,7 @@ export default async function BrandHubPage({
   searchParams,
 }: {
   params: Promise<{ brandId: string }>;
-  searchParams: Promise<{ period?: string; taskSort?: string; teamFilter?: string; assigneeFilter?: string }>;
+  searchParams: Promise<{ period?: string; taskSort?: string; teamFilter?: string; assigneeFilter?: string; channel?: string }>;
 }) {
   const { brandId } = await params;
   const ctx = await getUserContext();
@@ -309,6 +310,7 @@ export default async function BrandHubPage({
     taskSort: taskSortParam,
     teamFilter: teamFilterParam,
     assigneeFilter: assigneeFilterParam,
+    channel: channelParam,
   } = await searchParams;
   const period: Period = (PERIODS as string[]).includes(periodParam ?? "") ? (periodParam as Period) : "mtd";
   const taskSort: TaskSort = (TASK_SORTS as readonly string[]).includes(taskSortParam ?? "")
@@ -317,10 +319,45 @@ export default async function BrandHubPage({
   const teamFilter = teamFilterParam || undefined;
   const assigneeFilter = assigneeFilterParam || undefined;
 
-  const metrics = await getBrandMetrics(brandId, period);
-  const metricsSeries = await getBrandMetricsTimeSeries(brandId, period);
+  // Marketplace filter — same two patterns as the client-facing /dashboard (see lib/metrics.ts's
+  // getBrandMarketplaceChannels): sibling brand rows sharing this client (Dormeo US/CA), or
+  // several marketplace channels on this one brand (Hapad's amazon-us/amazon-canada). Sibling
+  // brands are filtered through canStaffAccessBrand so this never links to a brand this staff
+  // member isn't actually granted access to.
+  const brandClientInfo = await getBrandClientInfo(brandId);
+  // Sellerise is the only Amazon data source trusted for the Performance chart — a brand without
+  // it shows "No Amazon connection found" instead of falling back to the older weekly-report
+  // scrape (see lib/metrics.ts's brandHasSellerise).
+  const hasSellerise = await brandHasSellerise(brandId);
+  const siblingBrandsRaw = brandClientInfo ? await getBrandsForClient(brandClientInfo.clientId, ctx.id) : [];
+  const siblingAccess = await Promise.all(siblingBrandsRaw.map((b: any) => canStaffAccessBrand(ctx, b.id)));
+  const siblingBrands = siblingBrandsRaw.filter((_: any, i: number) => siblingAccess[i]);
+  const marketplaceChannels = hasSellerise ? await getBrandMarketplaceChannels(brandId) : [];
+  const channel = marketplaceChannels.some((c) => c.channel === channelParam) ? channelParam : undefined;
+  const marketplaceOptions =
+    siblingBrands.length > 1
+      ? siblingBrands.map((b: any) => ({
+          key: b.id,
+          label: b.name,
+          href: `/internal/brand/${b.id}?period=${period}`,
+          active: b.id === brandId,
+        }))
+      : marketplaceChannels.map((c) => ({
+          key: c.channel,
+          label: c.label,
+          href: `/internal/brand/${brandId}?period=${period}&channel=${c.channel}`,
+          active: c.channel === channel,
+        }));
+
+  // getBrandMetrics stays as the "does this period have any data at all" gate for the Performance
+  // section below — getBrandPerformanceTiles always returns 10 tiles (zeroed when there's no
+  // data), so it can't answer that question on its own.
+  const metrics = hasSellerise ? await getBrandMetrics(brandId, period, channel) : [];
+  const tiles = hasSellerise ? await getBrandPerformanceTiles(brandId, period, channel) : [];
   const recommendations = await getBrandRecommendations(brandId);
   const openRecommendations = recommendations.filter((r) => r.status === "open");
+  const forecastYear = new Date().getFullYear();
+  const forecast = await getBrandForecast(brandId, forecastYear);
   const { weeklyReportUrls, inventoryReportUrls, reconciliationReportUrls } = await getBrandReportLinks(brandId);
   const inventoryPreview = await getInventoryPreview(brandId);
   const reconciliationSummary = await getReconciliationSummary(brandId);
@@ -336,7 +373,7 @@ export default async function BrandHubPage({
   const channelsEnabled = await getBrandChannelsEnabled(brandId);
   const tiktokConnection = channelsEnabled.includes("tiktok_shop") ? await getTikTokShopConnection(brandId) : null;
   const isAdmin = isOwner(ctx);
-  const clientInfo = isAdmin ? await getBrandClientInfo(brandId) : null;
+  const clientInfo = isAdmin ? brandClientInfo : null;
   const brandUsers = clientInfo ? await getUsersWithBrandAccess(clientInfo.clientId) : [];
   const activeTasks = tasks.filter((t) => t.status !== "done");
   const doneTasks = tasks
@@ -368,23 +405,104 @@ export default async function BrandHubPage({
       </a>
       <h1 style={{ marginBottom: 24 }}>{brandName}</h1>
 
+      <nav className="top-nav">
+        <a href={`/internal/brand/${brandId}`} className="active">
+          Home
+        </a>
+        <a href={`/internal/brand/${brandId}/pnl`}>P&amp;L</a>
+        <a href={`/internal/brand/${brandId}/ads`}>Ads</a>
+        <a href={`/internal/brand/${brandId}/marketing`}>Marketing</a>
+        <a href={`/internal/brand/${brandId}/inventory`}>Inventory</a>
+        <a href={`/internal/seo/${brandId}`}>SEO</a>
+        <a href={`/internal/brand/${brandId}/creative`}>Creative</a>
+        <a href={`/internal/brand/${brandId}/account-health`}>Account health</a>
+      </nav>
+
       <section style={{ marginBottom: 32 }}>
         <h2>Performance</h2>
-        <nav className="pill-nav">
-          {PERIODS.map((p) => (
-            <a key={p} href={`/internal/brand/${brandId}?period=${p}`} className={p === period ? "active" : ""}>
-              {p.toUpperCase()}
-            </a>
-          ))}
-        </nav>
-        {metrics.length === 0 ? (
+        {hasSellerise && marketplaceOptions.length > 1 && (
+          <nav className="pill-nav" aria-label="Marketplace">
+            {marketplaceOptions.map((opt) => (
+              <a key={opt.key} href={opt.href} className={opt.active ? "active" : ""}>
+                {opt.label}
+              </a>
+            ))}
+          </nav>
+        )}
+        {hasSellerise && (
+          <nav className="pill-nav">
+            {PERIODS.map((p) => (
+              <a
+                key={p}
+                href={`/internal/brand/${brandId}?period=${p}${channel ? `&channel=${channel}` : ""}`}
+                className={p === period ? "active" : ""}
+              >
+                {p.toUpperCase()}
+              </a>
+            ))}
+          </nav>
+        )}
+        {!hasSellerise ? (
+          <p>No Amazon connection found.</p>
+        ) : metrics.length === 0 ? (
           <p>No metrics for this period yet.</p>
         ) : (
-          <div className="card" style={{ maxWidth: 720 }}>
-            <MetricsChart series={metricsSeries as any} />
-          </div>
+          <PerformanceTiles tiles={tiles} />
         )}
       </section>
+
+      {forecast.length > 0 && (
+        <section style={{ marginBottom: 32 }}>
+          <h2>Forecast ({forecastYear})</h2>
+          <p style={{ marginTop: 0 }}>
+            <small style={{ color: "var(--muted)" }}>
+              From the brand's own Master Spec Sheet (Forecast tab) — synced daily alongside product specs.
+            </small>
+          </p>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "0.85rem" }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left", padding: "4px 8px", whiteSpace: "nowrap" }}>Metric</th>
+                  {forecast.map((m) => (
+                    <th key={m.month} style={{ textAlign: "right", padding: "4px 8px", whiteSpace: "nowrap" }}>
+                      {new Date(2000, m.month - 1, 1).toLocaleString(undefined, { month: "short" })}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { label: "Forecast revenue", key: "forecastRevenue" as const, fmt: "money" as const },
+                  { label: "Actual revenue", key: "actualRevenue" as const, fmt: "money" as const },
+                  { label: "Organic revenue", key: "organicRevenue" as const, fmt: "money" as const },
+                  { label: "Advertising revenue", key: "advertisingRevenue" as const, fmt: "money" as const },
+                  { label: "Forecast ad budget", key: "forecastAdBudget" as const, fmt: "money" as const },
+                  { label: "Actual ad spend", key: "actualAdSpend" as const, fmt: "money" as const },
+                  { label: "Forecast TACoS", key: "forecastTacos" as const, fmt: "pct" as const },
+                  { label: "Actual TACoS", key: "actualTacos" as const, fmt: "pct" as const },
+                ].map((row) => (
+                  <tr key={row.key} style={{ borderTop: "1px solid var(--paper-2)" }}>
+                    <td style={{ padding: "4px 8px", whiteSpace: "nowrap" }}>{row.label}</td>
+                    {forecast.map((m) => {
+                      const value = m[row.key];
+                      return (
+                        <td key={m.month} style={{ textAlign: "right", padding: "4px 8px", whiteSpace: "nowrap" }}>
+                          {value === null
+                            ? "—"
+                            : row.fmt === "money"
+                              ? `$${Math.round(value).toLocaleString()}`
+                              : `${(value * 100).toFixed(1)}%`}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {openRecommendations.length > 0 && (
         <section style={{ marginBottom: 32 }}>

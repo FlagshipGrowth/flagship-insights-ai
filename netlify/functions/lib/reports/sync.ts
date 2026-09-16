@@ -44,10 +44,18 @@ interface ReportUrlEntry {
  * schedule. Per-report failures don't stop the rest (see catalog-sync.ts for the same pattern). */
 export async function syncAllWeeklyReports(): Promise<{ synced: number; failed: number }> {
   const sql = getDb();
+  // Sellerise (see app/api/sellerise/sync/route.ts) is the authoritative Amazon data source for
+  // any brand it's connected to — this weekly-report scrape writes into the same channel="amazon"
+  // namespace with a different, older metric_key vocabulary (sales/ad_spend/organic_revenue/...),
+  // and since it re-upserts on every run its dates always look "fresher" than Sellerise's actual
+  // sync cadence, silently winning as the chart's default metric. Skip Sellerise-connected brands
+  // here entirely — this only stops the metrics_daily write, not the report LINK itself (that's a
+  // separate read of brands.weekly_report_urls via lib/reports.ts's getBrandReportLinks). Brands
+  // with no Sellerise account (e.g. Aura House) still depend on this as their only real source.
   const brands = (await sql`
     select id, weekly_report_urls
     from brands
-    where jsonb_array_length(weekly_report_urls) > 0
+    where jsonb_array_length(weekly_report_urls) > 0 and sellerise_account_name is null
   `) as { id: string; weekly_report_urls: ReportUrlEntry[] }[];
 
   const targets = brands.flatMap((b) => b.weekly_report_urls.map((r) => ({ brandId: b.id, label: r.label, url: r.url })));

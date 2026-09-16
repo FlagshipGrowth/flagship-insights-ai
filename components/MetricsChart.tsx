@@ -144,11 +144,16 @@ function formatValue(metricKey: string, value: number): string {
   return value.toLocaleString();
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, granularity: "daily" | "monthly"): string {
   // Postgres returns `date` columns as full ISO timestamps ("2026-08-30T00:00:00.000Z"), not
   // bare "YYYY-MM-DD" — `new Date()` parses either form correctly on its own, no need to (and
   // don't) append a time suffix, which would double up and produce an Invalid Date.
   const d = new Date(iso);
+  if (granularity === "monthly") {
+    // YTD rolls up to one point per month (lib/metrics.ts) — showing the day (always the 1st)
+    // would be misleading, so just the month, with the year for a lifetime-spanning chart.
+    return d.toLocaleDateString(undefined, { month: "short", year: "numeric", timeZone: "UTC" });
+  }
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
@@ -167,7 +172,15 @@ interface Series {
   max: number;
 }
 
-export function MetricsChart({ series: rawSeries }: { series: MetricPoint[] }) {
+export function MetricsChart({
+  series: rawSeries,
+  granularity = "daily",
+  chartType = "line",
+}: {
+  series: MetricPoint[];
+  granularity?: "daily" | "monthly";
+  chartType?: "line" | "bar";
+}) {
   const svgRef = useRef<SVGSVGElement>(null);
   const availableMetrics = useMemo(() => {
     const present = new Set(rawSeries.map((p) => p.metric_key));
@@ -232,6 +245,18 @@ export function MetricsChart({ series: rawSeries }: { series: MetricPoint[] }) {
     return MARGIN.left + (idx / (dates.length - 1)) * innerWidth;
   };
 
+  // Bar mode gives every date its own band (rather than a point on a continuous line) — bars for
+  // each series in that date sit side by side within it, group centered.
+  const bandWidth = innerWidth / Math.max(1, dates.length);
+  const bandCenterX = (date: string) => MARGIN.left + dates.indexOf(date) * bandWidth + bandWidth / 2;
+  const barGroupWidth = bandWidth * 0.7;
+  const barGap = 2;
+  const barWidth = Math.max(1, (barGroupWidth - (seriesList.length - 1) * barGap) / Math.max(1, seriesList.length));
+  const barX = (date: string, seriesIndex: number) => {
+    const groupLeft = MARGIN.left + dates.indexOf(date) * bandWidth + (bandWidth - barGroupWidth) / 2;
+    return groupLeft + seriesIndex * (barWidth + barGap);
+  };
+
   // Single metric: plot on its own real value axis (unchanged behavior). Multiple metrics: each
   // series is normalized 0..1 within its own min/max so wildly different scales (e.g. "Orders": 43
   // vs "Revenue": $16,071) can share one chart — the axis becomes relative, and the hover tooltip
@@ -265,7 +290,9 @@ export function MetricsChart({ series: rawSeries }: { series: MetricPoint[] }) {
     const scaleX = WIDTH / rect.width;
     const viewBoxX = (e.clientX - rect.left) * scaleX;
     const ratio = Math.min(1, Math.max(0, (viewBoxX - MARGIN.left) / innerWidth));
-    const idx = Math.round(ratio * (dates.length - 1));
+    // Bar mode: each date owns a whole band, so hit-test by which band the pointer falls in
+    // (floor), not the nearest point (round) — a click anywhere in a bar's band should hover it.
+    const idx = chartType === "bar" ? Math.floor(ratio * dates.length) : Math.round(ratio * (dates.length - 1));
     setHoverIndex(Math.min(dates.length - 1, Math.max(0, idx)));
   }
 
@@ -276,10 +303,14 @@ export function MetricsChart({ series: rawSeries }: { series: MetricPoint[] }) {
           .filter((r): r is { s: Series; point: MetricPoint } => !!r.point)
       : [];
 
+  // The x-position used for the guideline, date labels, and tooltip anchor — a bar's mark is the
+  // center of its band; a line point's mark is the point itself.
+  const markX = (date: string) => (chartType === "bar" ? bandCenterX(date) : x(date));
+
   // Keep the tooltip from clipping off the right edge of the card — flip at the midpoint rather
   // than late, since a multi-metric tooltip (several rows, longer "Metric · channel" labels) is
   // wider than the single-metric case this was originally tuned for.
-  const hoverXPct = hoveredDate ? (x(hoveredDate) / WIDTH) * 100 : 0;
+  const hoverXPct = hoveredDate ? (markX(hoveredDate) / WIDTH) * 100 : 0;
   const tooltipAlign = hoverXPct > 50 ? "right" : "left";
 
   return (
@@ -332,16 +363,16 @@ export function MetricsChart({ series: rawSeries }: { series: MetricPoint[] }) {
           ))}
 
           {dateLabels.map((d) => (
-            <text key={d} x={x(d)} y={HEIGHT - 8} textAnchor="middle" fontSize={10} fill="var(--muted)">
-              {formatDate(d)}
+            <text key={d} x={markX(d)} y={HEIGHT - 8} textAnchor="middle" fontSize={10} fill="var(--muted)">
+              {formatDate(d, granularity)}
             </text>
           ))}
 
           {/* Hover guideline + highlighted points */}
           {hoveredDate && (
             <line
-              x1={x(hoveredDate)}
-              x2={x(hoveredDate)}
+              x1={markX(hoveredDate)}
+              x2={markX(hoveredDate)}
               y1={MARGIN.top}
               y2={MARGIN.top + innerHeight}
               stroke="var(--muted)"
@@ -350,7 +381,30 @@ export function MetricsChart({ series: rawSeries }: { series: MetricPoint[] }) {
             />
           )}
 
-          {seriesList.map((s) => {
+          {chartType === "bar"
+            ? seriesList.map((s, si) =>
+                s.rows.map((p) => {
+                  const isHovered = p.date === hoveredDate;
+                  const zeroY = y(0, s);
+                  const valueY = y(p.value, s);
+                  const top = Math.min(zeroY, valueY);
+                  const height = Math.max(1, Math.abs(valueY - zeroY));
+                  return (
+                    <rect
+                      key={`${s.key}::${p.date}`}
+                      x={barX(p.date, si)}
+                      y={top}
+                      width={barWidth}
+                      height={height}
+                      fill={s.color}
+                      opacity={isHovered ? 1 : 0.85}
+                      stroke={isHovered ? "#fff" : "none"}
+                      strokeWidth={isHovered ? 1 : 0}
+                    />
+                  );
+                })
+              )
+            : seriesList.map((s) => {
             const path = s.rows.map((p, j) => `${j === 0 ? "M" : "L"} ${x(p.date)} ${y(p.value, s)}`).join(" ");
             return (
               <g key={s.key}>
@@ -402,7 +456,7 @@ export function MetricsChart({ series: rawSeries }: { series: MetricPoint[] }) {
               zIndex: 10,
             }}
           >
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>{formatDate(hoveredDate)}</div>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>{formatDate(hoveredDate, granularity)}</div>
             {tooltipRows.map(({ s, point }) => (
               <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
