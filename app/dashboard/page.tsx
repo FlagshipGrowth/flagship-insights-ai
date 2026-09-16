@@ -10,7 +10,9 @@ import {
   type Period,
 } from "@/lib/metrics";
 import { getBrandReportLinks, getInventoryPreview, getReconciliationSummary } from "@/lib/reports";
+import { getBrandRecommendations } from "@/lib/brand-recommendations";
 import { PerformanceTiles } from "@/components/PerformanceTiles";
+import { RecommendationsFeed } from "@/components/RecommendationsFeed";
 import { InventoryPreviewCard } from "@/components/InventoryPreviewCard";
 import { ReconciliationPreviewCard } from "@/components/ReconciliationPreviewCard";
 import { PendingApproval } from "@/components/PendingApproval";
@@ -67,6 +69,8 @@ export default async function DashboardPage({
   const metrics = hasSellerise ? await getBrandMetrics(brand.id, period, channel) : [];
   const tiles = hasSellerise ? await getBrandPerformanceTiles(brand.id, period, channel) : [];
   const latestInsight = await getLatestInsight(brand.id);
+  const recommendations = await getBrandRecommendations(brand.id);
+  const openRecommendations = recommendations.filter((r) => r.status === "open");
   const { weeklyReportUrls, inventoryReportUrls, reconciliationReportUrls } = await getBrandReportLinks(brand.id);
   const inventoryPreview = await getInventoryPreview(brand.id);
   const reconciliationSummary = await getReconciliationSummary(brand.id);
@@ -90,51 +94,75 @@ export default async function DashboardPage({
         <a href={`/account-health?brand=${brand.id}`}>Account health</a>
       </nav>
 
-      {hasSellerise && marketplaceOptions.length > 1 && (
-        <nav className="pill-nav" aria-label="Marketplace">
-          {marketplaceOptions.map((opt) => (
-            <a key={opt.key} href={opt.href} className={opt.active ? "active" : ""}>
-              {opt.label}
-            </a>
-          ))}
-        </nav>
-      )}
-
-      {hasSellerise && (
-        <nav className="pill-nav">
-          {PERIODS.map((p) => (
-            <a
-              key={p}
-              href={`/dashboard?brand=${brand.id}&period=${p}${channel ? `&channel=${channel}` : ""}`}
-              className={p === period ? "active" : ""}
-            >
-              {p.toUpperCase()}
-            </a>
-          ))}
-        </nav>
-      )}
+      <section style={{ marginBottom: 32 }}>
+        <h2>Performance</h2>
+        {hasSellerise && marketplaceOptions.length > 1 && (
+          <nav className="pill-nav" aria-label="Marketplace">
+            {marketplaceOptions.map((opt) => (
+              <a key={opt.key} href={opt.href} className={opt.active ? "active" : ""}>
+                {opt.label}
+              </a>
+            ))}
+          </nav>
+        )}
+        {hasSellerise && (
+          <nav className="pill-nav">
+            {PERIODS.map((p) => (
+              <a
+                key={p}
+                href={`/dashboard?brand=${brand.id}&period=${p}${channel ? `&channel=${channel}` : ""}`}
+                className={p === period ? "active" : ""}
+              >
+                {p.toUpperCase()}
+              </a>
+            ))}
+          </nav>
+        )}
+        {!hasSellerise ? (
+          <p>No Amazon connection found.</p>
+        ) : metrics.length === 0 ? (
+          <p>No metrics yet for this period — sync hasn't produced data for this range yet.</p>
+        ) : (
+          <PerformanceTiles tiles={tiles} />
+        )}
+      </section>
 
       {(weeklyReportUrls.length > 0 || inventoryReportUrls.length > 0 || reconciliationReportUrls.length > 0) && (
-        <section className="card" style={{ marginBottom: 24, maxWidth: 720 }}>
+        <section style={{ marginBottom: 32 }}>
           <h2>Reports</h2>
           <p>
             <small>Updated weekly, usually Monday or Tuesday.</small>
           </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-            {weeklyReportUrls.map((r) => (
-              <a key={r.url} href={r.url} target="_blank" rel="noopener noreferrer">
-                Weekly Sales/Ads Report{r.label ? ` (${r.label})` : ""} →
-              </a>
-            ))}
-            {inventoryReportUrls.map((r) => (
-              <a key={r.url} href={r.url} target="_blank" rel="noopener noreferrer">
-                Inventory Report{r.label ? ` (${r.label})` : ""} →
-              </a>
-            ))}
-            {reconciliationReportUrls.map((r) => (
-              <a key={r.url} href={r.url} target="_blank" rel="noopener noreferrer">
-                Reconciliation Report{r.label ? ` (${r.label})` : ""} →
-              </a>
+          <div className="card" style={{ maxWidth: 640, padding: 0, overflow: "hidden" }}>
+            {[
+              ...weeklyReportUrls.map((r) => ({
+                label: `Weekly Sales/Ads Report${r.label ? ` (${r.label})` : ""}`,
+                url: r.url,
+              })),
+              ...inventoryReportUrls.map((r) => ({
+                label: `Inventory Report${r.label ? ` (${r.label})` : ""}`,
+                url: r.url,
+              })),
+              ...reconciliationReportUrls.map((r) => ({
+                label: `Reconciliation Report${r.label ? ` (${r.label})` : ""}`,
+                url: r.url,
+              })),
+            ].map((report, i, arr) => (
+              <div
+                key={report.url}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "14px 20px",
+                  borderBottom: i < arr.length - 1 ? "1px solid var(--paper-2)" : "none",
+                }}
+              >
+                <span>{report.label}</span>
+                <a href={report.url} target="_blank" rel="noopener noreferrer">
+                  Open →
+                </a>
+              </div>
             ))}
           </div>
         </section>
@@ -146,6 +174,18 @@ export default async function DashboardPage({
 
       {reconciliationSummary && (
         <ReconciliationPreviewCard summary={reconciliationSummary} reportUrl={reconciliationReportUrls[0]?.url} />
+      )}
+
+      {openRecommendations.length > 0 && (
+        <section style={{ marginBottom: 32 }}>
+          <h2>Recommendations ({openRecommendations.length})</h2>
+          <p style={{ marginTop: 0 }}>
+            <small style={{ color: "var(--muted)" }}>
+              Findings from connected data sources, refreshed on each sync.
+            </small>
+          </p>
+          <RecommendationsFeed recommendations={openRecommendations} />
+        </section>
       )}
 
       <section className="card" style={{ marginBottom: 24, maxWidth: 720 }}>
@@ -162,15 +202,6 @@ export default async function DashboardPage({
           <GenerateInsightButton brandId={brand.id} />
         </div>
       </section>
-
-      <h2>Performance</h2>
-      {!hasSellerise ? (
-        <p>No Amazon connection found.</p>
-      ) : metrics.length === 0 ? (
-        <p>No metrics yet for this period — sync hasn't produced data for this range yet.</p>
-      ) : (
-        <PerformanceTiles tiles={tiles} />
-      )}
     </main>
   );
 }

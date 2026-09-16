@@ -25,6 +25,7 @@ import { TASK_PRIORITIES, TASK_PRIORITY_LABELS } from "@/lib/task-priority";
 import { getDb } from "@/lib/db";
 import { Badge } from "@/components/Badge";
 import { PerformanceTiles } from "@/components/PerformanceTiles";
+import { RecommendationsFeed } from "@/components/RecommendationsFeed";
 import { InventoryPreviewCard } from "@/components/InventoryPreviewCard";
 import { ReconciliationPreviewCard } from "@/components/ReconciliationPreviewCard";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -451,6 +452,87 @@ export default async function BrandHubPage({
         )}
       </section>
 
+      {(weeklyReportUrls.length > 0 || inventoryReportUrls.length > 0 || reconciliationReportUrls.length > 0) && (
+        <section style={{ marginBottom: 32 }}>
+          <h2>Reports</h2>
+          <p>
+            <small>Updated weekly by the reporting pipeline, usually Monday or Tuesday.</small>
+          </p>
+          <div className="card" style={{ maxWidth: 640, padding: 0, overflow: "hidden" }}>
+            {[
+              ...weeklyReportUrls.map((r) => ({
+                label: `Weekly Sales/Ads Report${r.label ? ` (${r.label})` : ""}`,
+                url: r.url,
+              })),
+              ...inventoryReportUrls.map((r) => ({
+                label: `Inventory Report${r.label ? ` (${r.label})` : ""}`,
+                url: r.url,
+              })),
+              ...reconciliationReportUrls.map((r) => ({
+                label: `Reconciliation Report${r.label ? ` (${r.label})` : ""}`,
+                url: r.url,
+              })),
+            ].map((report, i, arr) => (
+              <div
+                key={report.url}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "14px 20px",
+                  borderBottom: i < arr.length - 1 ? "1px solid var(--paper-2)" : "none",
+                }}
+              >
+                <span>{report.label}</span>
+                <a href={report.url} target="_blank" rel="noopener noreferrer">
+                  Open →
+                </a>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {inventoryPreview && (
+        <InventoryPreviewCard preview={inventoryPreview} reportUrl={inventoryReportUrls[0]?.url} />
+      )}
+
+      {reconciliationSummary && (
+        <ReconciliationPreviewCard summary={reconciliationSummary} reportUrl={reconciliationReportUrls[0]?.url} />
+      )}
+
+      {openRecommendations.length > 0 && (
+        <section style={{ marginBottom: 32 }}>
+          <h2>Recommendations ({openRecommendations.length})</h2>
+          <p style={{ marginTop: 0 }}>
+            <small style={{ color: "var(--muted)" }}>
+              Findings from connected data sources, refreshed on each sync.
+            </small>
+          </p>
+          <RecommendationsFeed
+            recommendations={openRecommendations}
+            renderActions={(id) => {
+              const boundAction = actionBrandRecommendation.bind(null, brandId, id, "actioned");
+              const boundDismiss = actionBrandRecommendation.bind(null, brandId, id, "dismissed");
+              return (
+                <>
+                  <form action={boundAction}>
+                    <button type="submit" className="secondary">
+                      Mark actioned
+                    </button>
+                  </form>
+                  <form action={boundDismiss}>
+                    <ConfirmButton className="secondary" confirmText="Dismiss this recommendation?">
+                      Dismiss
+                    </ConfirmButton>
+                  </form>
+                </>
+              );
+            }}
+          />
+        </section>
+      )}
+
       {forecast.length > 0 && (
         <section style={{ marginBottom: 32 }}>
           <h2>Forecast ({forecastYear})</h2>
@@ -502,112 +584,6 @@ export default async function BrandHubPage({
             </table>
           </div>
         </section>
-      )}
-
-      {openRecommendations.length > 0 && (
-        <section style={{ marginBottom: 32 }}>
-          <h2>Recommendations ({openRecommendations.length})</h2>
-          <p style={{ marginTop: 0 }}>
-            <small style={{ color: "var(--muted)" }}>
-              Internal only — not shown to the client. From connected data sources (Sellerise, etc.), refreshed on each sync.
-            </small>
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {openRecommendations.map((r) => {
-              const boundAction = actionBrandRecommendation.bind(null, brandId, r.id, "actioned");
-              const boundDismiss = actionBrandRecommendation.bind(null, brandId, r.id, "dismissed");
-              return (
-                <div key={r.id} className="agent-post">
-                  <div className="agent-post-header">
-                    <div className="agent-avatar">{r.source.charAt(0).toUpperCase()}</div>
-                    <span className="agent-name">{r.source}</span>
-                    <span
-                      className="badge"
-                      style={{
-                        background: r.severity === "high" || r.severity === "critical" ? "var(--accent-lime)" : "var(--paper-2)",
-                        color: "var(--ink)",
-                      }}
-                    >
-                      {r.category}
-                    </span>
-                    <small style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>{new Date(r.createdAt).toLocaleDateString()}</small>
-                  </div>
-                  <p className="agent-post-body">
-                    <strong>{r.title}</strong>
-                    {"\n"}
-                    {r.body}
-                  </p>
-                  {r.metaRef && (
-                    <p style={{ margin: "6px 0 10px" }}>
-                      <small>{r.metaRef}</small>
-                    </p>
-                  )}
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <form action={boundAction}>
-                      <button type="submit" className="secondary">
-                        Mark actioned
-                      </button>
-                    </form>
-                    <form action={boundDismiss}>
-                      <ConfirmButton className="secondary" confirmText="Dismiss this recommendation?">
-                        Dismiss
-                      </ConfirmButton>
-                    </form>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {(weeklyReportUrls.length > 0 || inventoryReportUrls.length > 0 || reconciliationReportUrls.length > 0) && (
-        <section style={{ marginBottom: 32 }}>
-          <h2>Reports</h2>
-          <p>
-            <small>Updated weekly by the reporting pipeline, usually Monday or Tuesday.</small>
-          </p>
-          <div className="card" style={{ maxWidth: 640, padding: 0, overflow: "hidden" }}>
-            {[
-              ...weeklyReportUrls.map((r) => ({
-                label: `Weekly Sales/Ads Report${r.label ? ` (${r.label})` : ""}`,
-                url: r.url,
-              })),
-              ...inventoryReportUrls.map((r) => ({
-                label: `Inventory Report${r.label ? ` (${r.label})` : ""}`,
-                url: r.url,
-              })),
-              ...reconciliationReportUrls.map((r) => ({
-                label: `Reconciliation Report${r.label ? ` (${r.label})` : ""}`,
-                url: r.url,
-              })),
-            ].map((report, i, arr) => (
-              <div
-                key={report.url}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "14px 20px",
-                  borderBottom: i < arr.length - 1 ? "1px solid var(--paper-2)" : "none",
-                }}
-              >
-                <span>{report.label}</span>
-                <a href={report.url} target="_blank" rel="noopener noreferrer">
-                  Open →
-                </a>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {inventoryPreview && (
-        <InventoryPreviewCard preview={inventoryPreview} reportUrl={inventoryReportUrls[0]?.url} />
-      )}
-
-      {reconciliationSummary && (
-        <ReconciliationPreviewCard summary={reconciliationSummary} reportUrl={reconciliationReportUrls[0]?.url} />
       )}
 
       <section style={{ marginBottom: 32 }}>
