@@ -35,7 +35,9 @@ Alternative: `/seo-listing bulk` replies with a direct link to the same upload o
 
 ## Quick one-off: just @-mention Claude Tag directly
 
-You don't have to run `/seo-listing` at all — you can just tag `@Claude` in any brand's channel and ask directly, e.g. *"@Claude can you draft an SEO listing for [product]?"*. Claude Tag will always reply first confirming/asking for **Product Name, SKU, ASIN, and the website product page URL** (plus the account manager if it's not obvious) before doing any actual work — reply with whatever's missing (SKU/ASIN can be "not assigned/live yet") and it'll research and draft it the same way, into the same `SEO-{BrandName}` sheet.
+You don't have to run `/seo-listing` at all — you can just tag `@Claude` in any brand's channel and ask directly, e.g. *"@Claude can you draft an SEO listing for [product]?"*. Claude Tag's first reply always asks whether this is **one product or a bulk request for several different products** before doing anything else:
+- **One product:** it confirms **Product Name, SKU, ASIN, and the website product page URL** (plus the account manager if it's not obvious) — reply with whatever's missing (SKU/ASIN can be "not assigned/live yet") and it'll research and draft it the same way, into the same `SEO-{BrandName}` sheet.
+- **Bulk:** it drops the CSV template right into the thread and points you to `/seo-listing`'s bulk file upload or the dashboard's Bulk SEO listing upload page — it won't try to run a real bulk batch on its own in a Slack thread, since a big batch needs the tracked pipeline (see "Bulk upload" above), not an ad-hoc back-and-forth.
 
 That same first reply also asks whether the product comes in other colors/sizes to cover in the same request — if you list them, Claude Tag researches once and adapts the rest, instead of you needing a separate ask per SKU (see Notes below). It may ask one more quick clarifying question too (e.g. specific claims/certifications to include, or a competitor to benchmark against) if something's genuinely unclear — it's kept to a couple of quick questions, not a full interview.
 
