@@ -33,6 +33,14 @@ For a brand with a big batch of products (e.g. 50 SKUs for a new catalog launch)
 
 Alternative: `/seo-listing bulk` replies with a direct link to the same upload on the dashboard (under a brand's **Tools → Bulk SEO listing upload**), if you'd rather review the batch there before/while it runs.
 
+## Quick one-off: just @-mention Claude Tag directly
+
+You don't have to run `/seo-listing` at all — you can just tag `@Claude` in any brand's channel and ask directly, e.g. *"@Claude can you draft an SEO listing for [product], SKU [x], here's the page: [url]"*. Claude Tag will ask for anything missing (product name, SKU, URL, account manager if it's not obvious), then research and draft it the same way, into the same `SEO-{BrandName}` sheet.
+
+**The one real difference: this does not create a task on the dashboard.** There's nothing to track in "In Progress"/"Done," and no thread being watched by Flagship AI — it's genuinely untracked, on purpose, for quick one-offs where you don't need the dashboard record. Use `/seo-listing` instead whenever you actually want the request tracked (e.g. anything a client is waiting on, or anything you want visible in the brand's task list).
+
+This only works in a channel Claude Tag has already been invited into — same requirement as everything else here.
+
 ## Notes
 - A bulk batch is one task and one Slack thread regardless of row count — a single-product request is still its own task/thread, same as always. Every reply (single or bulk) is a short "complete" pointer to the sheet, not the draft itself — this keeps the channel readable even when many requests land close together.
 - Color-only variants (new SKU, same product otherwise) run faster — Claude Tag reuses prior research and only updates the color in search terms/title.
