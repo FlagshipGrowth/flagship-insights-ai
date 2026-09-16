@@ -116,7 +116,11 @@ function buildSeoListingModalView(brand: { id: string; name: string }, userId: s
         block_id: "product_url_block",
         optional: true,
         label: { type: "plain_text", text: "Website product page URL" },
-        element: { type: "plain_text_input", action_id: "product_url_input" },
+        element: {
+          type: "plain_text_input",
+          action_id: "product_url_input",
+          placeholder: { type: "plain_text", text: "The actual product page — not your homepage or a category page" },
+        },
       },
       {
         type: "input",
