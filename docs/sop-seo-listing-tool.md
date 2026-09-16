@@ -35,7 +35,7 @@ Alternative: `/seo-listing bulk` replies with a direct link to the same upload o
 
 ## Quick one-off: just @-mention Claude Tag directly
 
-You don't have to run `/seo-listing` at all — you can just tag `@Claude` in any brand's channel and ask directly, e.g. *"@Claude can you draft an SEO listing for [product], SKU [x], here's the page: [url]"*. Claude Tag will ask for anything missing (product name, SKU, URL, account manager if it's not obvious), then research and draft it the same way, into the same `SEO-{BrandName}` sheet.
+You don't have to run `/seo-listing` at all — you can just tag `@Claude` in any brand's channel and ask directly, e.g. *"@Claude can you draft an SEO listing for [product]?"*. Claude Tag will always reply first confirming/asking for **Product Name, SKU, ASIN, and the website product page URL** (plus the account manager if it's not obvious) before doing any actual work — reply with whatever's missing (SKU/ASIN can be "not assigned/live yet") and it'll research and draft it the same way, into the same `SEO-{BrandName}` sheet.
 
 **The one real difference: this does not create a task on the dashboard.** There's nothing to track in "In Progress"/"Done," and no thread being watched by Flagship AI — it's genuinely untracked, on purpose, for quick one-offs where you don't need the dashboard record. Use `/seo-listing` instead whenever you actually want the request tracked (e.g. anything a client is waiting on, or anything you want visible in the brand's task list).
 

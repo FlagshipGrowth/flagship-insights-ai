@@ -11,10 +11,11 @@ Generates a compliant Amazon listing for one product, following Flagship Growth'
 
 ## Required inputs
 
-Before starting, confirm you have all three. If any are missing, ask for them instead of guessing:
+Before starting, confirm you have all four. If any are missing, ask for them instead of guessing:
 
 - **Product name**
-- **SKU** (and ASIN, if the product is already live on Amazon)
+- **SKU** (blank/"not assigned yet" if none exists)
+- **ASIN** (blank/"not live yet" if the product isn't live on Amazon yet)
 - **Link to the brand's website product page** (for brand voice, USPs, and any detail not yet on Amazon)
 
 Also confirm **which brand's Slack channel** this is for, and **who the account manager is**. There are two equally valid ways this request reaches you — figure out which one you're in, since it changes how you reply (Section 9) but nothing about the actual research/drafting work:
@@ -23,7 +24,11 @@ Also confirm **which brand's Slack channel** this is for, and **who the account 
 
 - **Bulk requests look the same, just with a list.** A bulk CSV upload (many SKUs at once) still posts as one message with one task ID — but the message lists multiple products (name, SKU, priority) instead of one, sometimes noting more rows than are listed inline (the rest are on the tracked task's description, not in Slack). Work through **every** listed product as its own full run of this procedure (own niche dive, own sheet tab, own Ranking Juice pull — color/variant-only shortcuts in Section 1/6 still apply where they genuinely match) — don't treat the list as one combined product. Then post **one single reply** for the whole batch when every product in the list is done (Section 9, step 4), not one reply per product — there's only one thread and one task ID for the entire batch.
 
-**B) Direct — someone just @-mentions you in a brand's channel** (or DMs you) asking for a listing, with no `/seo-listing` message involved at all. **This is a fully supported, first-class way to trigger this skill, not a fallback** — the whole point is letting anyone get a listing drafted without needing the dashboard at all. Gather the required inputs above directly from them in the thread (product name, SKU, website URL, priority if they have one, account manager if it's not obvious from who's asking) — same standard as path A, just asked instead of read from a trigger message. Do the full procedure exactly the same way (research, niche dive, Ranking Juice, sheet write). The only real differences: **there is no task ID and nothing to log onto a dashboard task** — don't invent one, don't say "task" in your reply, and don't try to reach `/internal/brand/[brandId]` (still no access). Reply in the same thread the request came in (or start one on the original message if it wasn't already threaded) — see Section 9's direct-request reply format.
+**B) Direct — someone just @-mentions you in a brand's channel** (or DMs you) asking for a listing, with no `/seo-listing` message involved at all. **This is a fully supported, first-class way to trigger this skill, not a fallback** — the whole point is letting anyone get a listing drafted without needing the dashboard at all.
+
+**Always ask for the four required inputs above first, as your very first reply, before doing anything else** — before any site crawl, before `get_quota`, before any Data Dive/Helium10 call. Even if the @-mention looks complete, restate what you read and ask them to confirm/fill the rest in one message, e.g.: *"Got it — [Product name], SKU [x], [URL]. What's the ASIN (or is it not live yet)? And who's the account manager for this?"* Only start the actual procedure once they've replied confirming or supplying the missing pieces. This is a deliberate two-step exchange, not a one-shot — a stray or partial mention shouldn't trigger real work (research time, and real Data Dive/Helium10 spend) before someone's actually confirmed they want it. This is the one thing that's genuinely different from path A, not the reply format — once inputs are confirmed, do the full procedure exactly the same way (research, niche dive, Ranking Juice, sheet write). Also confirm the account manager the same way if it's not obvious from who's asking.
+
+The only other real differences from path A: **there is no task ID and nothing to log onto a dashboard task** — don't invent one, don't say "task" in your reply, and don't try to reach `/internal/brand/[brandId]` (still no access). Reply in the same thread the request came in (or start one on the original message if it wasn't already threaded) — see Section 9's direct-request reply format.
 
 ## Tools
 
