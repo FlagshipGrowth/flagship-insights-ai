@@ -9,3 +9,4 @@ out/
 *.tsbuildinfo
 .marketing-sync-secret
 .tiktok-shop-sync-secret
+.sellerise-sync-secret
