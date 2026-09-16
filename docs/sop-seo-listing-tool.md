@@ -37,12 +37,14 @@ Alternative: `/seo-listing bulk` replies with a direct link to the same upload o
 
 You don't have to run `/seo-listing` at all — you can just tag `@Claude` in any brand's channel and ask directly, e.g. *"@Claude can you draft an SEO listing for [product]?"*. Claude Tag will always reply first confirming/asking for **Product Name, SKU, ASIN, and the website product page URL** (plus the account manager if it's not obvious) before doing any actual work — reply with whatever's missing (SKU/ASIN can be "not assigned/live yet") and it'll research and draft it the same way, into the same `SEO-{BrandName}` sheet.
 
+That same first reply also asks whether the product comes in other colors/sizes to cover in the same request — if you list them, Claude Tag researches once and adapts the rest, instead of you needing a separate ask per SKU (see Notes below). It may ask one more quick clarifying question too (e.g. specific claims/certifications to include, or a competitor to benchmark against) if something's genuinely unclear — it's kept to a couple of quick questions, not a full interview.
+
 **The one real difference: this does not create a task on the dashboard.** There's nothing to track in "In Progress"/"Done," and no thread being watched by Flagship AI — it's genuinely untracked, on purpose, for quick one-offs where you don't need the dashboard record. Use `/seo-listing` instead whenever you actually want the request tracked (e.g. anything a client is waiting on, or anything you want visible in the brand's task list).
 
 This only works in a channel Claude Tag has already been invited into — same requirement as everything else here.
 
 ## Notes
 - A bulk batch is one task and one Slack thread regardless of row count — a single-product request is still its own task/thread, same as always. Every reply (single or bulk) is a short "complete" pointer to the sheet, not the draft itself — this keeps the channel readable even when many requests land close together.
-- Color-only variants (new SKU, same product otherwise) run faster — Claude Tag reuses prior research and only updates the color in search terms/title.
+- Color/size variants (new SKU, same product otherwise) run faster — Claude Tag reuses prior research and only updates the varying attribute in search terms/title. If you know upfront a product has multiple variants, mention them all in one request (or answer the @-mention flow's variant question) so Claude Tag researches once and drafts every SKU in that same pass, instead of one request per variant.
 - If Claude Tag asks for spend approval before running, reply "approved" in the thread — this is a known open issue we're still tuning.
 - Google Sheet lives in the shared Drive under `SEO-{BrandName}`, shared as "Anyone with the link can edit" — anyone on the team can jump in without requesting access.
