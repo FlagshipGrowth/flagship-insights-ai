@@ -21,6 +21,8 @@ Also confirm **which brand's Slack channel** this is for, and **who the account 
 
 **Normal trigger for this skill is a `/seo-listing` request from Flagship AI, not a human typing to you directly.** Flagship AI's Slack app posts one message per request, in the brand's own channel, @-mentioning you — and that message already carries everything above: product name, SKU (or "not assigned yet"), website URL, priority, the account manager's name, and a task ID (e.g. "task 4f2a..."). Read it from there rather than asking again. You have no access to this app's internal portal or database, so you can't look anything up yourself if it's missing — if the message is genuinely incomplete, ask in the same thread rather than guessing or trying to browse `/internal/brand/[brandId]` (you can't sign into it). Reply **in that same thread** when you're done (see Section 9) — Flagship AI is watching for your reply there and logs it onto the tracked task automatically; posting anywhere else means the request never shows as handled.
 
+**Bulk requests look the same, just with a list.** A bulk CSV upload (many SKUs at once) still posts as one message with one task ID — but the message lists multiple products (name, SKU, priority) instead of one, sometimes noting more rows than are listed inline (the rest are on the tracked task's description, not in Slack). Work through **every** listed product as its own full run of this procedure (own niche dive, own sheet tab, own Ranking Juice pull — color/variant-only shortcuts in Section 1/6 still apply where they genuinely match) — don't treat the list as one combined product. Then post **one single reply** for the whole batch when every product in the list is done (Section 9, step 4), not one reply per product — there's only one thread and one task ID for the entire batch.
+
 If instead someone genuinely does ask you directly (not via a `/seo-listing` message), gather all of the above from them first, the same way — you just won't have a task ID or Flagship AI watching for the reply in that case.
 
 ## Tools
@@ -59,6 +61,8 @@ Pull all four for the niche:
 - `get_niche_roots` — highest-impact word roots by broad search volume, for prioritizing what earns a place in Title/Highlights
 - `get_niche_competitors` — competitor ASINs, titles, BSR, price, ratings, and their overall Ranking Juice, for niche saturation and positioning
 - `get_ranking_juice` — per-competitor breakdown of what's actually driving their ranking (title/bullets/description contributions), and the niche's `optimizedListing` target — this is the "ranking juice" the SOP wants you to optimize toward
+
+**Keep your working notes from this step — don't discard them once step 4 is done.** The top 3–5 competitors you pull here (ASIN, title, and which specific keyword(s) each one is winning on that you incorporated into this draft) go into the sheet as a real, reviewable Competitor Snapshot (Section 9), not just internal scratch work. Note as you go which competitor(s) each keyword you adopt actually came from, so you can cite it later instead of reconstructing the reasoning after the fact.
 
 If the product is already live (you have an ASIN): also pull its current keywords/rank via Helium10's reverse-ASIN lookup, and its live content via `retrieve_listing_by_asin`/`get_listing_details` to use as `currentListing` in step 4 **and** as the "Current Content" column in the sheet (Section 9) — if it's not live yet, the "Current" side of the sheet is simply left blank/marked "Not live yet."
 
@@ -119,6 +123,7 @@ Each bullet:
 - Spell out numbers one–nine in prose ("three," "seven") — except in model numbers and measurements, which stay numeric
 - Measurements: space between digit and unit ("60 ml," not "60ml")
 - Confirm the actual character limit for this product's category/type before finalizing — it varies by category, don't assume a fixed number
+- **Fill toward that confirmed limit — target at least 90% of it per bullet.** A bullet that lands well under the limit is under-optimized, not "concise" — Amazon's own ranking weight rewards fuller field usage, and a short bullet is wasted allowance a competitor's fuller one will out-rank. If a bullet comes in short, go back and add genuine, specific detail (a real use case, a material spec, a sizing note, an answer to a Rufus FAQ from Section 5) rather than accepting it as done — never pad with filler or repeat something already said elsewhere just to hit the number. Record each bullet's character count against its limit (e.g. "228/250") in the sheet's Char/Byte Count column (Section 9) so this is checkable at a glance, and treat any bullet noticeably under 90% as a draft still in progress, not delivered.
 - Never include: fabric content, care instructions, or country of origin (these belong in their own listing fields, not bullets)
 - Never include: subjective/comparative claims ("best," "strongest") unless verifiable on packaging; competitor comparisons; cross-sell references to other ASINs; unsubstantiated awards/survey claims
 
@@ -153,6 +158,15 @@ Researched from general SEO/accessibility guidance, not Amazon's own primary doc
 - 1–2 keywords or a short descriptive phrase per image, objective and accurate to what's actually shown (colors, angle, use-in-context) — doesn't need to be a grammatically complete sentence
 - If you don't know what each specific A+ Content image actually shows (you likely won't, working from a website product page alone), say so rather than inventing plausible-sounding descriptions — list this as an open item for whoever builds the A+ Content, not a guess dressed up as a deliverable.
 
+#### G. Overall Ranking Juice — one rolled-up number for the whole listing, not just per-title
+
+Every field above (Title, Bullets, Description, Backend Search Terms) gets its own Proposed Ranking Juice number in the sheet (Section 9) — but the account manager also needs a single "how good is this listing overall" figure, not just a column of separate numbers they have to average themselves.
+
+- Compute it as the simple average of every field's Proposed Ranking Juice you recorded (Title A, Bullets, Description, Backend Search Terms — use Title A's number, not Title B's, since A is the primary recommendation; exclude any field you explicitly noted as un-scored per Section 9's "Proposed" rule).
+- Do the same for the Current side wherever the product is live and has a Current Ranking Juice per field, so the two Overall numbers are directly comparable.
+- Report both Overall numbers in a dedicated row at the **top** of the sheet tab (above the per-field rows), labeled "Overall Ranking Juice," using the same Current/Proposed columns as every other row.
+- If the Overall Proposed number comes out lower than Overall Current, say so plainly in your Slack reply (one added sentence, per the exception in Section 9 step 4) rather than letting the AM discover it by reading the sheet — a listing that scores worse than what's already live needs to be flagged, not quietly delivered.
+
 ### 7. Compliance self-check — do this explicitly, in order, before writing anything to the sheet
 
 Go through every check below against your own draft. If anything fails, fix it and re-check — don't deliver a draft that fails any of these:
@@ -177,6 +191,7 @@ Go through every check below against your own draft. If anything fails, fix it a
 
 **Bullets specifically:**
 - At least 3 bullets
+- Each bullet uses at least 90% of the confirmed category character limit — if not, go back and add real content (6C) before delivering, don't accept a short bullet
 - Each starts with a capital letter, ends with no terminal punctuation
 - Each opens with an ALL-CAPS header (3–6 words) + em dash, description in normal casing, no other ALL-CAPS runs after the dash
 - No ASIN strings (pattern like `B00XXXXXXX`) anywhere
@@ -213,15 +228,24 @@ If you're not fully certain whether a candidate word or phrase is compliant, lea
 
 1. **Find or create the brand's sheet.** Search Drive for a spreadsheet titled exactly `SEO-{BrandName}` (e.g. `SEO-Noggin Boss`). If it exists, use it — every request for this brand goes into the same spreadsheet, as new tabs, not a new file each time. Only create a new one (titled exactly `SEO-{BrandName}`) if none exists yet. **If you just created it, set sharing to "Anyone with the link" / Editor** via the Drive connector's share/permissions tool — this sheet needs to be editable by anyone on the team without a separate share request each time. **Confirm it actually took** by checking the file's permissions afterward (don't just assume the share call succeeded) — this has been skipped or silently failed before, leaving a brand-new sheet restricted to just you. If the sheet already existed, don't re-check this every request; it only needs doing once, at creation.
 2. **Add a tab named exactly by SKU.** If there's no SKU yet, use the ASIN; if there's neither (a genuinely new, unlaunched product), use a short slug of the product name — but note in your Slack reply that the tab should be renamed once a SKU is assigned. **If you duplicate an existing tab as a starting template, rename it immediately** — never leave a tab named "Copy of X" or "Copy of Copy of X." Check the sheet's existing tab names first; if one already matches this SKU, update that tab rather than creating a duplicate.
-3. **Lay out the tab** mirroring this structure — one row per field, with a Current/Proposed side-by-side comparison:
+3. **Lay out the tab** mirroring this structure — an Overall Ranking Juice summary row, then one row per field, then a Competitor Snapshot block, then the Current/Proposed comparison:
 
    | Field | Ranking Juice (Current) | Current Content | Char/Byte Count | Ranking Juice (Proposed) | Proposed Content | Approved by AM | Approved by Client | Feedback | Published |
    |---|---|---|---|---|---|---|---|---|---|
 
-   One row each for: Title A, Title B, Item Highlights, Bullet Point 1–N, Product Description, Backend Search Terms, Alt Text 1–N (if included). "Current" columns come from the live listing (Section 3) if the product is live — leave them blank with a note like "Not live yet" if it isn't. "Proposed" Ranking Juice comes from `result.rankingJuice` (step 4) for the fields Data Dive scored directly; for Title B and anything you built manually, note if you didn't re-score it separately rather than guessing a number.
+   **First row is always "Overall Ranking Juice"** (Section 6G) — Current/Proposed only, "Current Content"/"Proposed Content"/"Char/Byte Count" left blank for this row since it's a rollup, not a field. Then one row each for: Title A, Title B, Item Highlights, Bullet Point 1–N, Product Description, Backend Search Terms, Alt Text 1–N (if included). "Current" columns come from the live listing (Section 3) if the product is live — leave them blank with a note like "Not live yet" if it isn't. "Proposed" Ranking Juice comes from `result.rankingJuice` (step 4) for the fields Data Dive scored directly; for Title B and anything you built manually, note if you didn't re-score it separately rather than guessing a number.
 
    **"Approved by AM", "Approved by Client", and "Published" are checkboxes** (Google Sheets checkbox data validation on the cell, not plain text) — insert them as real checkboxes for every row in these three columns, unchecked by default. **"Feedback" is a plain text column**, left blank. Leave all four blank/unchecked — they're filled in by the account manager and client during review (see the note at the end of this section), never by you.
-4. **Reply in the Slack thread** (see Section 1 — same thread the request came in on) with **one short line, not a summary of the work**: a "complete" marker, the task ID, an @-mention (or plain name) of the account manager, and a link to the sheet's specific tab. Nothing else — no draft text, no field-by-field recap, no restating what's already in the trigger message. The sheet is the reviewable record, not this message; a long Slack reply just adds noise, especially on a bulk upload posting many of these into the same channel back to back. Example: `✅ Task 4f2a complete — @Shahrukh please review: [sheet link]`
+
+   **Below the field table, add a "Competitor Snapshot" block** — this is what actually informed the draft (Section 3), made visible instead of staying internal-only:
+
+   | Competitor ASIN | Competitor Title | Their Ranking Juice | Keyword(s) You Adopted From Them |
+   |---|---|---|---|
+
+   List the 3–5 competitors from `get_niche_competitors` you actually drew from while finalizing Section 6 — not every competitor the research touched, just the ones that genuinely shaped a keyword or positioning choice in this draft, with which specific keyword(s) came from each (the notes from Section 3). If a competitor's data informed the research but nothing from them ended up adopted into the final draft, leave them out — this block is for what actually made it into the listing, not the full research dump.
+4. **Reply in the Slack thread** (see Section 1 — same thread the request came in on) with **one short line, not a summary of the work**: a "complete" marker, the task ID, an @-mention (or plain name) of the account manager, and a link to the sheet. Nothing else — no draft text, no field-by-field recap, no restating what's already in the trigger message. The sheet is the reviewable record, not this message. Example: `✅ Task 4f2a complete — @Shahrukh please review: [sheet link]`
+   - **Single-product request:** link the sheet's specific tab for that SKU.
+   - **Bulk request (Section 1):** wait until every product in the trigger message's list is done, then post **one** reply for the whole batch — link the sheet itself (not one tab) since multiple tabs were added, and say how many products/tabs, e.g. `✅ Task 4f2a complete — 12 products drafted, @Shahrukh please review: [sheet link]`. Don't reply per product; there's one thread for the whole batch.
    - **Exception:** if something's genuinely wrong (quota exhausted partway, a page you couldn't reach, a required field you couldn't confidently fill in), say that in one added sentence — a real gap is worth flagging even in a short reply. Don't use this exception to sneak the full draft back in.
    - **Pin that reply to the channel** (the one containing the sheet link) via the Slack pin action, if the first request for this brand's sheet — so the sheet is always reachable from the channel's pinned items without scrolling back through history. Only pin once per brand (the same sheet gets reused across requests, per step 1); skip it on later requests for a brand whose sheet is already pinned.
 

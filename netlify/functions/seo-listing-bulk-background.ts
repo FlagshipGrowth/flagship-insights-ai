@@ -8,18 +8,18 @@ interface BulkRow {
   priority: string | null;
 }
 
-// Posting 50 Slack messages back-to-back risks Slack's per-channel rate limit — this is well
-// under it (Slack's Tier 3 limit is roughly 1/sec sustained) while keeping the whole batch fast.
-const DELAY_BETWEEN_POSTS_MS = 400;
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+// Slack's chat.postMessage text has a practical size limit, and a 50+ row batch listed in full
+// (with URLs) can get close to it — cap what's inlined in the message; the task description
+// (unbounded, on the dashboard) always carries every row regardless of batch size.
+const MAX_ROWS_LISTED_IN_SLACK = 30;
 
-// Same per-product pipeline as seo-listing-finalize-background.ts (one task + one Slack thread
-// per SKU — Claude Tag still needs to research and Ranking-Juice-score each product on its own,
-// and seo-listing-capture-reply-background.ts matches replies back to a task by thread_ts, which
-// only works 1:1), just looped for a CSV of many rows instead of one Slack modal submission. The
-// per-task Slack reply itself is short ("task complete" style, not a full draft dump) per the
-// amazon-seo-listing skill's Section 9 — the Google Sheet is the actual review surface, so this
-// doesn't flood the channel with 50 long messages the way posting full drafts here would.
+// One task + one Slack thread for the WHOLE batch, not one per row (that flooded the channel
+// with 2 messages per SKU — up to ~100 messages for a 50-SKU launch — and cluttered the
+// dashboard with one task per product). Claude Tag still researches and Ranking-Juice-scores
+// each product individually into the SEO-{Brand} sheet (per the amazon-seo-listing skill) — only
+// the trigger message and the completion reply are consolidated to one per batch.
+// seo-listing-capture-reply-background.ts matches by thread_ts, which is 1:1 with this one task,
+// so however many times Claude Tag replies in this thread, it all logs onto this single task.
 export default async (req: Request) => {
   const { brandId, brandName, channelId, requestedByName, rows } = (await req.json()) as {
     brandId: string;
@@ -44,64 +44,51 @@ export default async (req: Request) => {
         }).join(", ")
       : null;
 
+  const productCount = `${rows.length} product${rows.length === 1 ? "" : "s"}`;
+  const description = `Bulk SEO upload (${productCount}), requested by ${requestedByName}.\n\n${rows
+    .map((r, i) => `${i + 1}. ${r.productName} | SKU: ${r.sku ?? "not assigned yet"} | ${r.productUrl} | Priority: ${r.priority ?? "none"}`)
+    .join("\n")}`;
+
+  const inserted = await sql`
+    insert into tasks (brand_id, title, description, category, team, status)
+    values (${brandId}, ${`SEO listing bulk: ${productCount}`}, ${description}, 'SEO Listing Request', 'SEO Team', 'todo')
+    returning id
+  `;
+  const taskId = inserted[0]?.id;
+
+  const listedRows = rows.slice(0, MAX_ROWS_LISTED_IN_SLACK);
+  const remaining = rows.length - listedRows.length;
+  const productList = listedRows
+    .map((r, i) => `${i + 1}. *${r.productName}* — SKU: ${r.sku ?? "not assigned yet"}${r.priority ? ` — Priority: ${r.priority}` : ""}`)
+    .join("\n");
+
   const claudeMention = process.env.CLAUDE_TAG_SLACK_USER_ID ? `<@${process.env.CLAUDE_TAG_SLACK_USER_ID}> ` : "";
-  let succeeded = 0;
-  let failed = 0;
+  const text = `📋 *New bulk SEO listing request* (via Flagship AI) for *${brandName}* — ${productCount} (task ${taskId}), requested by ${requestedByName}
 
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    try {
-      const description = `Bulk SEO upload (row ${i + 1} of ${rows.length}), requested by ${requestedByName}.\nWebsite product page: ${row.productUrl}`;
-      const inserted = await sql`
-        insert into tasks (brand_id, title, description, category, team, sku, product_url, priority, status)
-        values (${brandId}, ${`SEO listing: ${row.productName}`}, ${description}, 'SEO Listing Request', 'SEO Team',
-                ${row.sku}, ${row.productUrl}, ${row.priority}, 'todo')
-        returning id
-      `;
-      const taskId = inserted[0]?.id;
+${productList}${remaining > 0 ? `\n…and ${remaining} more (full list with website URLs is in task ${taskId}'s description on the dashboard).` : ""}
 
-      const text = `📋 *New SEO listing request* (bulk upload via Flagship AI, ${i + 1}/${rows.length}) for *${brandName}* (task ${taskId})
-
-*Product:* ${row.productName}
-*SKU:* ${row.sku ?? "not assigned yet"}
-*Website page:* ${row.productUrl}
-*Priority:* ${row.priority ?? "none"}
 *Account manager:* ${accountManagerName ?? "none assigned in the system yet — mention this in your reply rather than guessing"}
 
-${claudeMention}please run the amazon-seo-listing skill for this product — task ${taskId}.`;
+${claudeMention}please run the amazon-seo-listing skill for each product above — research and draft each one individually into the SEO-${brandName} sheet — then reply once in this thread when the whole batch is done. Task ${taskId}.`;
 
-      try {
-        const result = await postSlackMessage({ channel: channelId, text, token: process.env.SLACK_USER_TOKEN });
-        if (taskId) {
-          await sql`update tasks set slack_thread_ts = ${result.ts} where id = ${taskId}`;
-        }
-        // Same immediate follow-up as seo-listing-finalize-background.ts — Claude Tag can
-        // silently miss the original mention, so always send one extra nudge right away.
-        if (claudeMention) {
-          await sleep(DELAY_BETWEEN_POSTS_MS);
-          await postSlackMessage({
-            channel: channelId,
-            thread_ts: result.ts,
-            text: `${claudeMention}following up on the request above — please pick this up now.`,
-            token: process.env.SLACK_USER_TOKEN,
-          }).catch((err) => console.error(`SEO listing bulk follow-up nudge failed (row ${i + 1}): ${err instanceof Error ? err.message : err}`));
-        }
-      } catch (err) {
-        await postSlackMessageOrFallback({ channel: channelId, text });
-      }
-      succeeded++;
-    } catch (err) {
-      failed++;
-      console.error(`seo-listing-bulk-background: row ${i + 1} (${row.productName}) failed: ${err}`);
+  try {
+    const result = await postSlackMessage({ channel: channelId, text, token: process.env.SLACK_USER_TOKEN });
+    if (taskId) {
+      await sql`update tasks set slack_thread_ts = ${result.ts} where id = ${taskId}`;
     }
-
-    if (i < rows.length - 1) await sleep(DELAY_BETWEEN_POSTS_MS);
+    // Same immediate follow-up as seo-listing-finalize-background.ts — Claude Tag can silently
+    // miss the original mention, so always send one extra nudge right away.
+    if (claudeMention) {
+      await postSlackMessage({
+        channel: channelId,
+        thread_ts: result.ts,
+        text: `${claudeMention}following up on the request above — please pick this up now.`,
+        token: process.env.SLACK_USER_TOKEN,
+      }).catch((err) => console.error(`SEO listing bulk follow-up nudge failed: ${err instanceof Error ? err.message : err}`));
+    }
+  } catch (err) {
+    await postSlackMessageOrFallback({ channel: channelId, text });
   }
-
-  await postSlackMessageOrFallback({
-    channel: channelId,
-    text: `✅ Bulk SEO upload for *${brandName}* done — ${succeeded} request${succeeded === 1 ? "" : "s"} queued above${failed > 0 ? `, ${failed} failed (check function logs)` : ""}.`,
-  });
 
   return new Response("ok", { status: 200 });
 };

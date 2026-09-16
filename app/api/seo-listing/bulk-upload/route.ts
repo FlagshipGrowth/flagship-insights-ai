@@ -45,6 +45,8 @@ export async function POST(req: Request) {
     body: JSON.stringify({ brandId, brandName, channelId, requestedByName, rows }),
   });
 
+  // "queued" is the product count, not a task count — seo-listing-bulk-background.ts creates one
+  // task (and one Slack thread) for the whole batch, not one per row. See seo-bulk/page.tsx.
   const url = new URL(`/internal/brand/${brandId}/seo-bulk`, req.url);
   url.searchParams.set("queued", String(rows.length));
   if (skipped > 0) url.searchParams.set("skipped", String(skipped));

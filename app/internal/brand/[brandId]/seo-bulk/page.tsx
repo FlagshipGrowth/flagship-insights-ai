@@ -30,10 +30,10 @@ export default async function SeoBulkUploadPage({
       <p style={{ marginBottom: 24, maxWidth: 640 }}>
         <small>
           For running the SEO listing agent across many SKUs at once (e.g. a new catalog launch). Download the
-          template, fill in one row per product, and re-upload — each row becomes its own tracked task, and Claude
-          Tag researches and drafts each one individually in the brand's Slack channel, same as a single{" "}
-          <code>/seo-listing</code> request. Once a task's thread shows complete, review the actual draft in the
-          brand's <code>SEO-{brandName}</code> Google Sheet — that's the reviewable record, not the Slack thread.
+          template, fill in one row per product, and re-upload — the whole batch becomes a single tracked task and a
+          single Slack thread (not one per row), and Claude Tag researches and drafts each product individually
+          within it. Once that thread shows complete, review the actual drafts in the brand's{" "}
+          <code>SEO-{brandName}</code> Google Sheet — that's the reviewable record, not the Slack thread.
         </small>
       </p>
 
@@ -44,7 +44,7 @@ export default async function SeoBulkUploadPage({
       )}
       {queued && (
         <div className="card" style={{ maxWidth: 640, marginBottom: 20 }}>
-          ✅ Queued {queued} SEO listing task{queued === "1" ? "" : "s"}.
+          ✅ Queued 1 bulk SEO listing task for {queued} product{queued === "1" ? "" : "s"}.
           {skipped && ` ${skipped} row${skipped === "1" ? "" : "s"} skipped — missing Product Name or a valid Website URL.`}{" "}
           Watch the brand's Slack channel for progress, and the sheet for drafts as they land.
         </div>
