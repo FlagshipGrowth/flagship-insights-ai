@@ -108,6 +108,19 @@ export default async function AgentsPage() {
             href="/internal"
             linkLabel="Open a brand's page →"
           />
+          <AgentCard
+            name="Sellerise Insights"
+            status="Active"
+            statusVariant="approved"
+            description="Pulls real Amazon seller-analytics data from Sellerise into each brand's dashboard — revenue, margin, PPC, payouts, Subscribe & Save, reviews, and keyword rank all show up as the brand's real 'amazon' channel data. Diagnostic findings (Smart Alerts, PPC waste, inventory risk, sales-change drivers, reimbursement highlights, keyword rank drops, search-term harvesting opportunities) post as internal-only recommendations on each brand's page — clients only ever see the core numbers, never the raw diagnosis."
+            facts={[
+              { label: "Scope", value: "16 brand rows across 14 Sellerise accounts, including SuperMush's Amazon business" },
+              { label: "Trigger", value: "Scheduled — daily sync" },
+              { label: "Visibility", value: "Core metrics client-visible; all diagnosis internal-only" },
+            ]}
+            href="/internal"
+            linkLabel="Open a brand's page →"
+          />
         </div>
       </section>
 

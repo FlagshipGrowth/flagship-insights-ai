@@ -17,6 +17,7 @@ import {
 } from "@/lib/tasks";
 import { getBrandSlackChannelId, getBrandChannelsEnabled, getBrandClientInfo, deleteBrand as deleteBrandRow } from "@/lib/brands";
 import { getTikTokShopConnection, saveTikTokShopConnection } from "@/lib/brand-strategy";
+import { getBrandRecommendations, updateBrandRecommendationStatus } from "@/lib/brand-recommendations";
 import { getUsersWithBrandAccess } from "@/lib/staff";
 import { TEAMS, resolveAssignee } from "@/lib/teams";
 import { TASK_PRIORITIES, TASK_PRIORITY_LABELS } from "@/lib/task-priority";
@@ -199,6 +200,15 @@ async function updateTikTokShopConnection(brandId: string, formData: FormData) {
   revalidatePath(`/internal/brand/${brandId}`);
 }
 
+async function actionBrandRecommendation(brandId: string, id: string, status: "actioned" | "dismissed") {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isInternalStaff(ctx)) return;
+  if (!(await canStaffAccessBrand(ctx, brandId))) return;
+  await updateBrandRecommendationStatus(id, status);
+  revalidatePath(`/internal/brand/${brandId}`);
+}
+
 async function addBrandUser(brandId: string, formData: FormData) {
   "use server";
   const ctx = await getUserContext();
@@ -309,6 +319,8 @@ export default async function BrandHubPage({
 
   const metrics = await getBrandMetrics(brandId, period);
   const metricsSeries = await getBrandMetricsTimeSeries(brandId, period);
+  const recommendations = await getBrandRecommendations(brandId);
+  const openRecommendations = recommendations.filter((r) => r.status === "open");
   const { weeklyReportUrls, inventoryReportUrls, reconciliationReportUrls } = await getBrandReportLinks(brandId);
   const inventoryPreview = await getInventoryPreview(brandId);
   const reconciliationSummary = await getReconciliationSummary(brandId);
@@ -373,6 +385,63 @@ export default async function BrandHubPage({
           </div>
         )}
       </section>
+
+      {openRecommendations.length > 0 && (
+        <section style={{ marginBottom: 32 }}>
+          <h2>Recommendations ({openRecommendations.length})</h2>
+          <p style={{ marginTop: 0 }}>
+            <small style={{ color: "var(--muted)" }}>
+              Internal only — not shown to the client. From connected data sources (Sellerise, etc.), refreshed on each sync.
+            </small>
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {openRecommendations.map((r) => {
+              const boundAction = actionBrandRecommendation.bind(null, brandId, r.id, "actioned");
+              const boundDismiss = actionBrandRecommendation.bind(null, brandId, r.id, "dismissed");
+              return (
+                <div key={r.id} className="agent-post">
+                  <div className="agent-post-header">
+                    <div className="agent-avatar">{r.source.charAt(0).toUpperCase()}</div>
+                    <span className="agent-name">{r.source}</span>
+                    <span
+                      className="badge"
+                      style={{
+                        background: r.severity === "high" || r.severity === "critical" ? "var(--accent-lime)" : "var(--paper-2)",
+                        color: "var(--ink)",
+                      }}
+                    >
+                      {r.category}
+                    </span>
+                    <small style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>{new Date(r.createdAt).toLocaleDateString()}</small>
+                  </div>
+                  <p className="agent-post-body">
+                    <strong>{r.title}</strong>
+                    {"\n"}
+                    {r.body}
+                  </p>
+                  {r.metaRef && (
+                    <p style={{ margin: "6px 0 10px" }}>
+                      <small>{r.metaRef}</small>
+                    </p>
+                  )}
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <form action={boundAction}>
+                      <button type="submit" className="secondary">
+                        Mark actioned
+                      </button>
+                    </form>
+                    <form action={boundDismiss}>
+                      <ConfirmButton className="secondary" confirmText="Dismiss this recommendation?">
+                        Dismiss
+                      </ConfirmButton>
+                    </form>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {(weeklyReportUrls.length > 0 || inventoryReportUrls.length > 0 || reconciliationReportUrls.length > 0) && (
         <section style={{ marginBottom: 32 }}>

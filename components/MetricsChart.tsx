@@ -32,6 +32,29 @@ const METRIC_LABELS: Record<string, string> = {
   live_gmv: "Live GMV",
   shop_health_score: "Shop Health Score",
   active_creators: "Active Creators",
+  revenue: "Revenue",
+  net: "Net Profit",
+  margin: "Margin",
+  orders: "Orders",
+  units: "Units",
+  refund_rate: "Refund Rate",
+  ppc_spend: "PPC Spend",
+  ppc_sales: "PPC Sales",
+  acos: "ACoS",
+  cpc: "CPC",
+  net_payout: "Net Payout",
+  product_payout: "Product Payout",
+  unallocated_payout: "Unallocated Payout",
+  sns_revenue: "Subscribe & Save Revenue",
+  sns_net: "Subscribe & Save Net",
+  sns_active_subs: "Active Subscribers",
+  sns_new_buyers: "New SnS Buyers",
+  sns_oos_rate: "SnS Out-of-Stock Rate",
+  avg_rating: "Avg Rating",
+  review_count: "Review Count",
+  negative_review_pct: "Negative Review %",
+  tracked_keywords_count: "Tracked Keywords",
+  avg_keyword_rank: "Avg Keyword Rank",
 };
 
 // Preferred display order — sales and ad spend first since those are what people look for.
@@ -58,20 +81,64 @@ const METRIC_ORDER = [
   "live_gmv",
   "shop_health_score",
   "active_creators",
+  "revenue",
+  "net",
+  "margin",
+  "orders",
+  "units",
+  "refund_rate",
+  "ppc_spend",
+  "ppc_sales",
+  "acos",
+  "cpc",
+  "net_payout",
+  "product_payout",
+  "unallocated_payout",
+  "sns_revenue",
+  "sns_net",
+  "sns_active_subs",
+  "sns_new_buyers",
+  "sns_oos_rate",
+  "avg_rating",
+  "review_count",
+  "negative_review_pct",
+  "tracked_keywords_count",
+  "avg_keyword_rank",
 ];
 
 const CHANNEL_COLORS = ["#2447FF", "#D6FF3F", "#6B6558", "#DC2626"];
 
+const CURRENCY_METRICS = [
+  "sales",
+  "ad_spend",
+  "ppc_revenue",
+  "organic_revenue",
+  "amount_spent",
+  "cost_per_lead",
+  "gmv",
+  "affiliate_gmv",
+  "video_gmv",
+  "live_gmv",
+  "revenue",
+  "net",
+  "ppc_spend",
+  "ppc_sales",
+  "cpc",
+  "net_payout",
+  "product_payout",
+  "unallocated_payout",
+  "sns_revenue",
+  "sns_net",
+];
+const PERCENT_METRICS = ["tacos", "ctr", "cvr", "margin", "refund_rate", "acos", "sns_oos_rate", "negative_review_pct"];
+
 function formatValue(metricKey: string, value: number): string {
-  if (
-    ["sales", "ad_spend", "ppc_revenue", "organic_revenue", "amount_spent", "cost_per_lead", "gmv", "affiliate_gmv", "video_gmv", "live_gmv"].includes(
-      metricKey
-    )
-  ) {
+  if (CURRENCY_METRICS.includes(metricKey)) {
     return `$${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
   }
-  if (["tacos", "ctr", "cvr"].includes(metricKey)) return `${value.toFixed(1)}%`;
+  if (PERCENT_METRICS.includes(metricKey)) return `${value.toFixed(1)}%`;
   if (metricKey === "roas") return `${value.toFixed(2)}x`;
+  if (metricKey === "avg_rating") return `${value.toFixed(1)}★`;
   return value.toLocaleString();
 }
 
