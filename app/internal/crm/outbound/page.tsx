@@ -317,8 +317,8 @@ export default async function OutboundPage({
           <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>Scoring weights</h2>
           <p style={{ marginTop: 0 }}>
             <small style={{ color: "var(--muted)" }}>
-              Must add up to 100. Saving creates a new version and rescores every prospect. Tier A is 80+, B is 55-79, C
-              is below 55.
+              Must add up to 100. Saving creates a new version and rescores every prospect. Tier A is 70+, B is 50-69, C
+              is below 50.
             </small>
           </p>
           {params.weightsError && <p style={{ color: "#DC2626" }}>⚠️ {params.weightsError}</p>}

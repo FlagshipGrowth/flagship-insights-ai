@@ -34,6 +34,25 @@ function FixList({ title, fixes }: { title: string; fixes: AuditFix[] }) {
   );
 }
 
+function ChannelStrip({ walmart, tiktokShop }: { walmart: boolean | null; tiktokShop: boolean | null }) {
+  const cell = (label: string, on: boolean | null) => (
+    <div className="card" style={{ flex: "1 1 160px", padding: "10px 14px", borderColor: on === false ? "var(--accent-blue)" : undefined }}>
+      <small style={{ color: "var(--muted)" }}>{label}</small>
+      <div style={{ fontWeight: 700 }}>{on === true ? "Selling here" : on === false ? "Not selling here yet" : "Not checked"}</div>
+    </div>
+  );
+  return (
+    <section style={{ marginBottom: 28 }}>
+      <h2 style={{ fontSize: "1.15rem", marginBottom: 10 }}>Where you sell today</h2>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        {cell("Amazon", true)}
+        {cell("Walmart", walmart)}
+        {cell("TikTok Shop", tiktokShop)}
+      </div>
+    </section>
+  );
+}
+
 const fmtNum = (n: number | null) => (n === null ? "–" : n.toLocaleString());
 const fmtPrice = (n: number | null) => (n === null ? "–" : `$${n.toFixed(2)}`);
 
@@ -66,6 +85,8 @@ export default async function AuditPage({ params }: { params: Promise<{ token: s
       </p>
       <h1 style={{ fontSize: "2rem", lineHeight: 1.15, margin: "8px 0 14px" }}>{audit.headline}</h1>
       <p style={{ fontSize: "1.05rem", lineHeight: 1.6, marginTop: 0, marginBottom: 28 }}>{f.summary}</p>
+
+      <ChannelStrip walmart={audit.channels.walmart} tiktokShop={audit.channels.tiktokShop} />
 
       {(audit.hasMainImageConcept || audit.originalImageUrl) && (
         <section style={{ marginBottom: 28 }}>
@@ -155,7 +176,9 @@ export default async function AuditPage({ params }: { params: Promise<{ token: s
 
       <FixList title="Image stack: highest-impact fixes" fixes={f.imageStackFixes} />
       <FixList title="A+ content" fixes={f.aPlusFixes} />
-      <FixList title="Sponsored ads gaps" fixes={f.adsGaps} />
+      <FixList title="What your reviews are telling you" fixes={f.reviewInsights} />
+      <FixList title="Pricing vs competitors" fixes={f.pricingNotes} />
+      <FixList title="Who's advertising against you" fixes={f.adsGaps} />
 
       {f.launchOpportunity && (
         <section className="card" style={{ marginBottom: 28 }}>

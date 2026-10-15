@@ -17,15 +17,16 @@ STEP 1: CLAIM THE BATCH
 1. Write `{"limit": <batch size>}` to a scratch file and run `python3 automations/outbound-post.py audit-queue <that file> <scratch>/queue.json`.
 2. The response's `prospects` are now claimed for you. Each has prospectId, companyName, tier, score, launchTrack, primaryAsin, website, category, estMonthlyRevenue, facts (what sourcing already verified) and researchNotes. If it's empty, report that and stop.
 
-STEP 2: DEEP AUDIT (Helium10 MCP, about 7 calls per brand)
-Load tools with ToolSearch "+helium10 listing competitors keywords" if they aren't loaded. Helium10 calls are a shared, limited budget (1,000/month across the team), so count every call you make per brand; you'll report the number. Aim for about 7:
+STEP 2: DEEP AUDIT (Helium10 MCP, about 8 calls per brand)
+Load tools with ToolSearch "+helium10 listing competitors keywords" if they aren't loaded. Helium10 calls are a shared, limited budget (1,000/month across the team), so count every call you make per brand; you'll report the number. Aim for about 8:
 1. retrieve_listing_by_asin on primaryAsin: title, bullets, images, A+, price, rating, reviews.
 2. get_listing_score: where the listing loses points.
 3. search_competitors_by_asin: pick the 2-3 closest real competitors (same product type and price band, not a random category leader).
 4. compare_asin_keywords (brand vs those competitors): high-volume terms they rank for and the brand doesn't.
 5. analyze_product_images on the brand's listing: main image and gallery problems.
 6. get_asin_bsr_history: confirm the trend sourcing recorded.
-7. search_product_targets_by_asin: sponsored ad visibility (who's advertising on and around them).
+7. search_product_targets_by_asin: who's advertising on and around their listing (competitors bidding on their product page and brand terms).
+8. get_asin_review_analysis on primaryAsin: the top recurring complaints and praise in their reviews.
 If the brand has no primaryAsin, or retrieve_listing_by_asin fails, skip it (it stays claimed and is released automatically after a day) and say so in your report.
 
 STEP 3: MAIN IMAGE NOTES
@@ -39,7 +40,9 @@ STEP 4: WRITE THE AUDIT
 - `findings.competitorBenchmark`: the brand first with isBrand: true, then the 2-3 competitors: name, asin, price, rating, reviewCount, bsr, imageNote (one short phrase on their main image or gallery).
 - `findings.imageStackFixes`: the 3-5 highest-impact gallery fixes, each {title, detail}. Name the slot ("Image 3 is a second lifestyle shot; nothing shows the size or what's in the box").
 - `findings.aPlusFixes`: up to 3, same shape. If they have no A+ at all, say that as the first item.
-- `findings.adsGaps`: up to 3, only what you could actually see from step 2.7. Leave empty rather than guess.
+- `findings.adsGaps`: up to 3, only what you could actually see from step 2.7: which competitors are advertising on their listing or brand terms, and where they're missing ad coverage. Name the competitors. Leave empty rather than guess.
+- `findings.reviewInsights`: up to 3, from step 2.8: the most common complaints (with how often they come up if the data shows it) and what customers love that the listing doesn't say. Each {title, detail}, with what to do about it.
+- `findings.pricingNotes`: up to 3, from the competitor benchmark: their price and price per unit/serving/ounce against the 2-3 competitors (do the math from the pack sizes on the listings), and whether the listing justifies any premium. Only use prices and sizes you saw.
 - `findings.launchOpportunity`: only when the prospect's launchTrack is true or the facts show onWalmart/onTikTokShop false. {channel: "walmart" | "tiktok_shop" | "both", estimate: a range grounded in their Amazon numbers and the category (say what you based it on), plan: 2-3 sentences on what a launch would look like}. Otherwise null.
 - `kind`: "deep" normally; "launch" if the launch opportunity is the main story.
 
@@ -59,6 +62,8 @@ Write the audit to a JSON file and run `python3 automations/outbound-post.py aud
     "imageStackFixes": [{"title": "...", "detail": "..."}],
     "aPlusFixes": [],
     "adsGaps": [],
+    "reviewInsights": [{"title": "...", "detail": "..."}],
+    "pricingNotes": [{"title": "...", "detail": "..."}],
     "launchOpportunity": null,
     "mainImageNotes": "..."
   }

@@ -455,6 +455,12 @@ export interface ProspectDetail extends ProspectRow {
   source: string | null;
   leadId: string | null;
   auditRequested: boolean;
+  preview: {
+    status: "pending" | "ready" | "error" | null;
+    error: string | null;
+    at: string | null;
+    messages: { day: number; channel: string; subject: string | null; body: string }[];
+  };
   contacts: {
     id: string;
     fullName: string | null;
@@ -500,6 +506,12 @@ export async function getProspectDetail(id: string): Promise<ProspectDetail | nu
     source: p.source,
     leadId: p.lead_id,
     auditRequested: p.audit_requested,
+    preview: {
+      status: p.preview_status ?? null,
+      error: p.preview_error ?? null,
+      at: p.preview_at ? new Date(p.preview_at).toISOString() : null,
+      messages: Array.isArray(p.preview_messages) ? p.preview_messages : [],
+    },
     contacts: contacts.map((c: any) => ({
       id: c.id,
       fullName: c.full_name,

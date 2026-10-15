@@ -14,7 +14,7 @@ import {
 import { SIGNAL_KEYS, SIGNAL_LABELS } from "@/lib/outbound-scoring";
 import { sequenceForTier, TIER_TREATMENT } from "@/lib/outbound-sequence";
 import { getAuditsForProspect, reviewAudit, HELIUM10_COST_PER_CALL } from "@/lib/outbound-audit";
-import { getProspectTouches } from "@/lib/outbound-sequencer";
+import { getProspectTouches, requestPreview } from "@/lib/outbound-sequencer";
 import { getProspectReplies, recordReply, triggerClassification, REPLY_CLASS_LABELS } from "@/lib/outbound-replies";
 import { OutboundTierBadge } from "@/components/OutboundTierBadge";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -32,6 +32,14 @@ async function requestAuditAction(prospectId: string) {
   const ctx = await getUserContext();
   if (!ctx || !isOwner(ctx)) return;
   await requestAudit(prospectId);
+  revalidatePath(`/internal/crm/outbound/${prospectId}`);
+}
+
+async function previewAction(prospectId: string) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isOwner(ctx)) return;
+  await requestPreview(prospectId);
   revalidatePath(`/internal/crm/outbound/${prospectId}`);
 }
 
@@ -363,6 +371,31 @@ export default async function ProspectPage({ params }: { params: Promise<{ prosp
               </div>
             ))
           )}
+        </section>
+
+        <section className="card">
+          <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>Email preview</h2>
+          <p style={{ marginTop: 0 }}>
+            <small style={{ color: "var(--muted)" }}>
+              Drafts this brand&apos;s emails from its audit so you can read them before approving. Nothing is sent or
+              scheduled. Takes about a minute; refresh the page to see it.
+            </small>
+          </p>
+          <form action={previewAction.bind(null, p.id)} style={{ margin: "0 0 8px" }}>
+            <button type="submit" disabled={p.preview.status === "pending"}>
+              {p.preview.status === "pending" ? "Writing… refresh in a minute" : p.preview.messages.length > 0 ? "Rewrite preview" : "Preview emails"}
+            </button>
+          </form>
+          {p.preview.status === "error" && <p style={{ color: "var(--danger, #b42318)", fontSize: "0.82rem" }}>Couldn&apos;t write the preview: {p.preview.error}</p>}
+          {p.preview.messages.map((m, i) => (
+            <details key={i} open={i === 0} style={{ borderTop: "1px solid var(--paper-2)", padding: "6px 0", fontSize: "0.85rem" }}>
+              <summary style={{ cursor: "pointer" }}>
+                <strong>Day {m.day}</strong> · {m.channel}
+              </summary>
+              {m.subject && <p style={{ margin: "6px 0 2px", fontWeight: 600 }}>Subject: {m.subject}</p>}
+              <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", margin: "4px 0" }}>{m.body}</pre>
+            </details>
+          ))}
         </section>
 
         <section className="card">
