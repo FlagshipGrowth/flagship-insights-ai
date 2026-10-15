@@ -35,6 +35,11 @@ export async function POST(req: Request) {
   if (body.revenue) notesParts.push(`Monthly revenue: ${body.revenue}`);
   if (body.note) notesParts.push(String(body.note).trim());
 
+  const text = (key: string) => {
+    const v = String(body[key] ?? "").trim();
+    return v || null;
+  };
+
   await insertLead({
     companyName,
     contactName,
@@ -42,6 +47,13 @@ export async function POST(req: Request) {
     source: "Website contact form",
     notes: notesParts.length > 0 ? notesParts.join("\n\n") : null,
     stage: "new",
+    rawSubmission: body,
+    utmSource: text("utm_source"),
+    utmMedium: text("utm_medium"),
+    utmCampaign: text("utm_campaign"),
+    gclid: text("gclid"),
+    fbclid: text("fbclid"),
+    referrer: text("referrer"),
   });
 
   return Response.json({ ok: true }, { headers: corsHeaders() });

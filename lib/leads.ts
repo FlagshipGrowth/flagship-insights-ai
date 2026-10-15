@@ -30,13 +30,35 @@ export interface Lead {
   assignedToEmail: string | null;
   isHot: boolean;
   createdAt: string;
+  rawSubmission: Record<string, unknown> | null;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  gclid: string | null;
+  fbclid: string | null;
+  referrer: string | null;
+}
+
+/** "paid" when a click-id or a paid-looking utm_medium is present, "organic" when some
+ * attribution data exists but none of it looks paid, or null when there's no attribution data at
+ * all (a manually-added or bulk-uploaded lead) — null is rendered as "unknown," never as a false
+ * "Organic". */
+export type LeadChannel = "paid" | "organic";
+
+export function leadChannel(lead: Pick<Lead, "utmMedium" | "gclid" | "fbclid" | "utmSource" | "referrer">): LeadChannel | null {
+  const hasAttribution = Boolean(lead.utmMedium || lead.gclid || lead.fbclid || lead.utmSource || lead.referrer);
+  if (!hasAttribution) return null;
+  if (lead.gclid || lead.fbclid) return "paid";
+  if (lead.utmMedium && /cpc|ppc|paid|display/i.test(lead.utmMedium)) return "paid";
+  return "organic";
 }
 
 export async function getLeads(): Promise<Lead[]> {
   const sql = getDb();
   const rows = await sql`
     select l.id, l.company_name, l.contact_name, l.email, l.source, l.stage,
-           l.estimated_value, l.notes, l.assigned_to_id, u.email as assigned_to_email, l.is_hot, l.created_at
+           l.estimated_value, l.notes, l.assigned_to_id, u.email as assigned_to_email, l.is_hot, l.created_at,
+           l.raw_submission, l.utm_source, l.utm_medium, l.utm_campaign, l.gclid, l.fbclid, l.referrer
     from leads l
     left join users u on u.id = l.assigned_to_id
     order by l.created_at desc
@@ -54,6 +76,13 @@ export async function getLeads(): Promise<Lead[]> {
     assignedToEmail: r.assigned_to_email,
     isHot: r.is_hot,
     createdAt: r.created_at,
+    rawSubmission: r.raw_submission,
+    utmSource: r.utm_source,
+    utmMedium: r.utm_medium,
+    utmCampaign: r.utm_campaign,
+    gclid: r.gclid,
+    fbclid: r.fbclid,
+    referrer: r.referrer,
   }));
 }
 
@@ -75,17 +104,31 @@ export interface NewLeadInput {
   assignedToId?: string | null;
   stage?: LeadStage;
   isHot?: boolean;
+  rawSubmission?: Record<string, unknown> | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  gclid?: string | null;
+  fbclid?: string | null;
+  referrer?: string | null;
 }
 
 /** Shared insert used by the "+ Add lead" modal, the CSV bulk-upload route, and the public
- * contact-form endpoint — every lead-creation path funnels through here. */
+ * contact-form endpoint — every lead-creation path funnels through here. Only the contact-form
+ * path ever populates rawSubmission/utm-fields/gclid/fbclid/referrer; the others leave them null. */
 export async function insertLead(input: NewLeadInput): Promise<string> {
   const sql = getDb();
   const rows = await sql`
-    insert into leads (company_name, contact_name, email, source, estimated_value, notes, assigned_to_id, stage, is_hot)
+    insert into leads (
+      company_name, contact_name, email, source, estimated_value, notes, assigned_to_id, stage, is_hot,
+      raw_submission, utm_source, utm_medium, utm_campaign, gclid, fbclid, referrer
+    )
     values (${input.companyName}, ${input.contactName ?? null}, ${input.email ?? null},
             ${input.source ?? null}, ${input.estimatedValue ?? DEFAULT_ESTIMATED_VALUE}, ${input.notes ?? null},
-            ${input.assignedToId ?? null}, ${input.stage ?? "new"}, ${input.isHot ?? false})
+            ${input.assignedToId ?? null}, ${input.stage ?? "new"}, ${input.isHot ?? false},
+            ${input.rawSubmission ? JSON.stringify(input.rawSubmission) : null}, ${input.utmSource ?? null},
+            ${input.utmMedium ?? null}, ${input.utmCampaign ?? null}, ${input.gclid ?? null},
+            ${input.fbclid ?? null}, ${input.referrer ?? null})
     returning id
   `;
   return rows[0].id;
@@ -138,6 +181,14 @@ export async function updateLeadSource(leadId: string, source: string | null): P
 export async function deleteLead(leadId: string): Promise<void> {
   const sql = getDb();
   await sql`delete from leads where id = ${leadId}`;
+}
+
+/** For the triage table's bulk-select bar — deleting many leads at once (e.g. junk from a bad
+ * bulk upload) instead of one at a time. */
+export async function bulkDeleteLeads(leadIds: string[]): Promise<void> {
+  if (leadIds.length === 0) return;
+  const sql = getDb();
+  await sql`delete from leads where id = any(${leadIds}::uuid[])`;
 }
 
 export async function setLeadHot(leadId: string, isHot: boolean): Promise<void> {
