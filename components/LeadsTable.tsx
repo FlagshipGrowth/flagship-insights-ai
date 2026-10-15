@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ViewSubmissionModal } from "./ViewSubmissionModal";
 
 export interface LeadRow {
   id: string;
@@ -13,6 +14,26 @@ export interface LeadRow {
   estimatedValue: number | null;
   isHot: boolean;
   stage: string;
+  rawSubmission: Record<string, unknown> | null;
+  channel: "paid" | "organic" | null;
+}
+
+function ChannelBadge({ channel }: { channel: "paid" | "organic" | null }) {
+  if (!channel) return <small style={{ color: "var(--muted)" }}>—</small>;
+  return (
+    <small
+      style={{
+        padding: "1px 6px",
+        borderRadius: 4,
+        fontWeight: 600,
+        background: channel === "paid" ? "var(--accent-lime)" : "var(--paper-2)",
+        color: "var(--ink)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {channel === "paid" ? "Paid" : "Organic"}
+    </small>
+  );
 }
 
 /** Full-width, dense triage table — used for both the New tab (leads still at stage "new") and
@@ -30,6 +51,7 @@ export function LeadsTable({
   moveOneAction,
   deleteAction,
   bulkMoveAction,
+  bulkDeleteAction,
   updateValueAction,
   updateSourceAction,
 }: {
@@ -40,12 +62,14 @@ export function LeadsTable({
   moveOneAction: (leadId: string, stage: string) => Promise<void>;
   deleteAction: (leadId: string) => Promise<void>;
   bulkMoveAction: (leadIds: string[], stage: string) => Promise<void>;
+  bulkDeleteAction: (leadIds: string[]) => Promise<void>;
   updateValueAction: (leadId: string, value: number | null) => Promise<void>;
   updateSourceAction: (leadId: string, source: string | null) => Promise<void>;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkStage, setBulkStage] = useState(stages.find((s) => s !== "new") ?? stages[0]);
   const [pending, setPending] = useState(false);
+  const [deletePending, setDeletePending] = useState(false);
   const allSelected = leads.length > 0 && selected.size === leads.length;
 
   function toggleOne(id: string) {
@@ -87,6 +111,20 @@ export function LeadsTable({
         >
           {pending ? "Moving…" : "Move"}
         </button>
+        <button
+          type="button"
+          disabled={selected.size === 0 || deletePending}
+          onClick={async () => {
+            if (!confirm(`Delete ${selected.size} selected lead${selected.size === 1 ? "" : "s"}? This cannot be undone.`)) return;
+            setDeletePending(true);
+            await bulkDeleteAction(Array.from(selected));
+            setSelected(new Set());
+            setDeletePending(false);
+          }}
+          style={{ color: "#DC2626" }}
+        >
+          {deletePending ? "Deleting…" : "Delete selected"}
+        </button>
       </div>
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -113,6 +151,8 @@ export function LeadsTable({
               <span style={{ width: 16 }} />
               <span style={{ width: 16 }} />
               <span style={{ flex: 1 }}>Company</span>
+              <span style={{ width: 16 }} />
+              <span style={{ minWidth: 60, textAlign: "center" }}>Channel</span>
               <span style={{ minWidth: 100, textAlign: "right" }}>Source</span>
               <span style={{ minWidth: 80, textAlign: "right" }}>Value</span>
               <span style={{ minWidth: 100 }}>Stage</span>
@@ -145,6 +185,12 @@ export function LeadsTable({
                     </button>
                     <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>
                       {lead.companyName}
+                    </span>
+                    <span style={{ width: 16, flexShrink: 0, display: "flex", justifyContent: "center" }}>
+                      {lead.rawSubmission && <ViewSubmissionModal companyName={lead.companyName} submission={lead.rawSubmission} />}
+                    </span>
+                    <span style={{ minWidth: 60, flexShrink: 0, display: "flex", justifyContent: "center" }}>
+                      <ChannelBadge channel={lead.channel} />
                     </span>
                     <input
                       type="text"
