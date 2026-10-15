@@ -37,6 +37,15 @@ export interface CompetitorRow {
   isBrand: boolean;
 }
 
+// The plain-English top of the audit: what we saw, why it matters to the business, and the fix.
+// Written for a founder who doesn't know Amazon jargon (no "BSR", "ASIN", "LQS").
+export interface AuditOpportunity {
+  title: string;
+  whatWeSaw: string;
+  whyItMatters: string;
+  theFix: string;
+}
+
 export interface LaunchOpportunity {
   channel: "walmart" | "tiktok_shop" | "both";
   estimate: string;
@@ -45,6 +54,7 @@ export interface LaunchOpportunity {
 
 export interface AuditFindings {
   summary: string;
+  opportunities: AuditOpportunity[];
   keywordGaps: KeywordGap[];
   competitorBenchmark: CompetitorRow[];
   imageStackFixes: AuditFix[];
@@ -111,8 +121,18 @@ export function parseFindings(input: unknown): AuditFindings | string {
     if (estimate && plan) launchOpportunity = { channel: lo.channel, estimate, plan };
   }
 
+  const opportunities = list(o.opportunities, 3)
+    .map((x: any) => ({
+      title: str(x.title, 160),
+      whatWeSaw: str(x.whatWeSaw, 600),
+      whyItMatters: str(x.whyItMatters, 600),
+      theFix: str(x.theFix, 600),
+    }))
+    .filter((x): x is AuditOpportunity => !!x.title && !!x.whatWeSaw && !!x.whyItMatters && !!x.theFix);
+
   return {
     summary,
+    opportunities,
     keywordGaps,
     competitorBenchmark,
     imageStackFixes: parseFixes(o.imageStackFixes),
@@ -209,6 +229,9 @@ export async function createAudit(input: NewAuditInput): Promise<{ auditId: stri
     if (!input.mainImageContentType?.startsWith("image/")) return "mainImageContentType must be an image/* type";
   }
 
+  // A new audit replaces any earlier unreviewed draft for the brand (drafts were never shared).
+  await sql`delete from outbound_audits where prospect_id = ${input.prospectId} and status = 'draft'`;
+
   const [audit] = await sql`
     insert into outbound_audits (prospect_id, kind, headline, findings, helium10_calls, original_image_url)
     values (${input.prospectId}, ${input.kind}, ${input.headline}, ${JSON.stringify(input.findings)}::jsonb,
@@ -256,6 +279,7 @@ export interface AuditView {
 
 const EMPTY_FINDINGS: AuditFindings = {
   summary: "",
+  opportunities: [],
   keywordGaps: [],
   competitorBenchmark: [],
   imageStackFixes: [],

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getAuditByToken, type AuditFix } from "@/lib/outbound-audit";
+import { getAuditByToken, type AuditFix, type AuditOpportunity } from "@/lib/outbound-audit";
 import { getUserContext, isOwner } from "@/lib/user-context";
 import {
   BrandPartnersSection,
@@ -43,6 +43,56 @@ function FixList({ title, fixes }: { title: string; fixes: AuditFix[] }) {
   );
 }
 
+function Opportunities({ items }: { items: AuditOpportunity[] }) {
+  if (items.length === 0) return null;
+  const label = { fontSize: "0.72rem", textTransform: "uppercase" as const, letterSpacing: "0.06em", color: "var(--muted)", fontWeight: 700 };
+  return (
+    <section style={{ marginBottom: 36 }}>
+      <h2 style={{ fontSize: "1.35rem", margin: "0 0 12px" }}>Your {items.length === 1 ? "biggest opportunity" : `${items.length} biggest opportunities`}</h2>
+      <div style={{ display: "grid", gap: 12 }}>
+        {items.map((o, i) => (
+          <div key={i} className="card" style={{ margin: 0, borderLeft: "4px solid var(--accent-blue)" }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+              <span style={{ fontWeight: 800, color: "var(--accent-blue)" }}>{i + 1}</span>
+              <strong style={{ fontSize: "1.05rem" }}>{o.title}</strong>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14, marginTop: 10 }}>
+              <div><div style={label}>What we saw</div><p style={{ margin: "4px 0 0", lineHeight: 1.5, fontSize: "0.92rem" }}>{o.whatWeSaw}</p></div>
+              <div><div style={label}>Why it matters</div><p style={{ margin: "4px 0 0", lineHeight: 1.5, fontSize: "0.92rem" }}>{o.whyItMatters}</p></div>
+              <div><div style={label}>The fix</div><p style={{ margin: "4px 0 0", lineHeight: 1.5, fontSize: "0.92rem" }}>{o.theFix}</p></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+const GLOSSARY = [
+  ["Search position", "Where your product shows up when a shopper types a search. #1 is the top. Most clicks and sales go to the first page of results."],
+  ["Sales rank (BSR)", "Amazon's ranking of how fast a product sells compared with others in its category. Lower is better: #500 outsells #5,000."],
+  ["Main image", "The first photo shoppers see in search results. It decides whether they click."],
+  ["Image gallery", "The extra photos on your product page. Mobile shows 7, and most shoppers buy on mobile."],
+  ["A+ content", "The branded images and copy lower on the page that answer questions and make the case for buying."],
+  ["Sponsored ads", "Paid placements on search results and on other brands' product pages, including your competitors'."],
+];
+
+function Glossary() {
+  return (
+    <section className="card" style={{ marginBottom: 36, background: "var(--paper-2)" }}>
+      <h2 style={{ fontSize: "1.05rem", marginTop: 0 }}>What these terms mean</h2>
+      <dl style={{ margin: 0, display: "grid", gap: 8 }}>
+        {GLOSSARY.map(([term, def]) => (
+          <div key={term}>
+            <dt style={{ fontWeight: 700, display: "inline" }}>{term}: </dt>
+            <dd style={{ display: "inline", margin: 0, fontSize: "0.9rem" }}>{def}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
 const fmtNum = (n: number | null) => (n === null ? "–" : n.toLocaleString());
 const fmtPrice = (n: number | null) => (n === null ? "–" : `$${n.toFixed(2)}`);
 
@@ -78,11 +128,16 @@ export default async function AuditPage({ params }: { params: Promise<{ token: s
       <h1 style={{ fontSize: "2rem", lineHeight: 1.15, margin: "8px 0 14px" }}>{audit.headline}</h1>
       <p style={{ fontSize: "1.05rem", lineHeight: 1.6, marginTop: 0, marginBottom: 28 }}>{f.summary}</p>
 
+      <Opportunities items={f.opportunities} />
+
       <ChannelsSection walmart={audit.channels.walmart} tiktokShop={audit.channels.tiktokShop} />
+
+      <p style={{ margin: "0 0 4px", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted)" }}>The details</p>
+      <h2 style={{ fontSize: "1.35rem", margin: "0 0 18px" }}>Everything we found, for you or your team</h2>
 
       {(audit.hasMainImageConcept || audit.originalImageUrl) && (
         <section style={{ marginBottom: 28 }}>
-          <h2 style={{ fontSize: "1.15rem", marginBottom: 10 }}>Main image</h2>
+          <h2 style={{ fontSize: "1.15rem", marginBottom: 10 }}>Your main image (the first photo shoppers see)</h2>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
             {audit.originalImageUrl && (
               <figure className="card" style={{ margin: 0, padding: 12 }}>
@@ -108,15 +163,15 @@ export default async function AuditPage({ params }: { params: Promise<{ token: s
 
       {f.keywordGaps.length > 0 && (
         <section style={{ marginBottom: 28 }}>
-          <h2 style={{ fontSize: "1.15rem", marginBottom: 4 }}>Keywords your competitors rank for and you don&apos;t</h2>
+          <h2 style={{ fontSize: "1.15rem", marginBottom: 4 }}>Searches where shoppers aren&apos;t finding you</h2>
           <div className="card table-scroll" style={{ padding: 0, marginTop: 10 }}>
             <table className="table-dense">
               <thead>
                 <tr>
-                  <th>Search term</th>
-                  <th>Searches / mo</th>
-                  <th>Who ranks</th>
-                  <th>You</th>
+                  <th>What shoppers type</th>
+                  <th>Searches a month</th>
+                  <th>Competitors show up at</th>
+                  <th>You show up at</th>
                 </tr>
               </thead>
               <tbody>
@@ -125,7 +180,7 @@ export default async function AuditPage({ params }: { params: Promise<{ token: s
                     <td>{k.keyword}</td>
                     <td>{fmtNum(k.monthlySearchVolume)}</td>
                     <td style={{ whiteSpace: "normal" }}>{k.competitorsRanking || "–"}</td>
-                    <td>{k.brandRank === null ? "Not ranking" : `#${k.brandRank}`}</td>
+                    <td>{k.brandRank === null ? "Not found" : `#${k.brandRank}`}</td>
                   </tr>
                 ))}
               </tbody>
@@ -136,7 +191,7 @@ export default async function AuditPage({ params }: { params: Promise<{ token: s
 
       {f.competitorBenchmark.length > 0 && (
         <section style={{ marginBottom: 28 }}>
-          <h2 style={{ fontSize: "1.15rem", marginBottom: 4 }}>How you compare</h2>
+          <h2 style={{ fontSize: "1.15rem", marginBottom: 4 }}>You vs your closest competitors</h2>
           <div className="card table-scroll" style={{ padding: 0, marginTop: 10 }}>
             <table className="table-dense">
               <thead>
@@ -145,8 +200,8 @@ export default async function AuditPage({ params }: { params: Promise<{ token: s
                   <th>Price</th>
                   <th>Rating</th>
                   <th>Reviews</th>
-                  <th>BSR</th>
-                  <th>Images</th>
+                  <th>Sales rank (lower sells more)</th>
+                  <th>Photos</th>
                 </tr>
               </thead>
               <tbody>
@@ -166,11 +221,13 @@ export default async function AuditPage({ params }: { params: Promise<{ token: s
         </section>
       )}
 
-      <FixList title="Image stack: highest-impact fixes" fixes={f.imageStackFixes} />
-      <FixList title="A+ content" fixes={f.aPlusFixes} />
+      <FixList title="Your product photos" fixes={f.imageStackFixes} />
+      <FixList title="Your product page copy and A+ content" fixes={f.aPlusFixes} />
       <FixList title="What your reviews are telling you" fixes={f.reviewInsights} />
       <FixList title="Pricing vs competitors" fixes={f.pricingNotes} />
       <FixList title="Who's advertising against you" fixes={f.adsGaps} />
+
+      <Glossary />
 
       {f.launchOpportunity && (
         <section className="card" style={{ marginBottom: 28 }}>
