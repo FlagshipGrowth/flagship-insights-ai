@@ -12,6 +12,7 @@ import {
 } from "@/lib/outbound";
 import { SIGNAL_KEYS, SIGNAL_LABELS } from "@/lib/outbound-scoring";
 import { sequenceForTier, TIER_TREATMENT } from "@/lib/outbound-sequence";
+import { getAuditsForProspect, reviewAudit, HELIUM10_COST_PER_CALL } from "@/lib/outbound-audit";
 import { OutboundTierBadge } from "@/components/OutboundTierBadge";
 import { ConfirmButton } from "@/components/ConfirmButton";
 
@@ -39,6 +40,18 @@ async function pushToPipelineAction(prospectId: string, formData: FormData) {
   await pushProspectToPipeline(prospectId, (formData.get("assignedToId") as string) || null);
   revalidatePath(`/internal/crm/outbound/${prospectId}`);
   revalidatePath("/internal/crm");
+}
+
+async function reviewAuditAction(prospectId: string, auditId: string, formData: FormData) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isOwner(ctx)) return;
+  const decision = formData.get("decision");
+  if (decision !== "approved" && decision !== "rejected") return;
+  const note = (formData.get("note") as string)?.trim() || null;
+  await reviewAudit(auditId, decision, note, ctx.email);
+  revalidatePath(`/internal/crm/outbound/${prospectId}`);
+  revalidatePath("/internal/crm/outbound");
 }
 
 const FACT_LABELS: Record<string, string> = {
@@ -70,7 +83,7 @@ export default async function ProspectPage({ params }: { params: Promise<{ prosp
 
   const { prospectId } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(prospectId)) notFound();
-  const [p, owners] = await Promise.all([getProspectDetail(prospectId), getOwnerUsers()]);
+  const [p, owners, audits] = await Promise.all([getProspectDetail(prospectId), getOwnerUsers(), getAuditsForProspect(prospectId)]);
   if (!p) notFound();
 
   const sequence = p.tier ? sequenceForTier(p.tier) : [];
@@ -262,26 +275,46 @@ export default async function ProspectPage({ params }: { params: Promise<{ prosp
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
         <section className="card">
           <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>Audits</h2>
-          {p.audits.length === 0 ? (
-            <small style={{ color: "var(--muted)" }}>None yet. Audits start in phase 2 (the 10-brand pilot).</small>
+          {audits.length === 0 ? (
+            <small style={{ color: "var(--muted)" }}>
+              {p.status === "audit_pending" ? "Claimed by the audit agent, in progress." : "None yet."}
+            </small>
           ) : (
-            <ul style={{ paddingLeft: 18, margin: 0, fontSize: "0.85rem" }}>
-              {p.audits.map((a) => (
-                <li key={a.id}>
-                  {a.kind} · {a.status} · {new Date(a.createdAt).toLocaleDateString()}
-                  {a.helium10Calls !== null && ` · ${a.helium10Calls} Helium10 calls`}
-                  {a.assetUrl && (
-                    <>
-                      {" "}
-                      ·{" "}
-                      <a href={a.assetUrl} target="_blank" rel="noreferrer">
-                        Open ↗
-                      </a>
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
+            audits.map((a) => (
+              <div key={a.id} style={{ borderTop: "1px solid var(--paper-2)", padding: "10px 0", fontSize: "0.85rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
+                  <strong>{a.headline ?? "Untitled audit"}</strong>
+                  <span className={`badge ${a.status === "approved" ? "badge-approved" : a.status === "rejected" ? "badge-rejected" : "badge-pending"}`}>
+                    {a.status}
+                  </span>
+                </div>
+                <div style={{ color: "var(--muted)", margin: "4px 0 8px" }}>
+                  {a.kind} · {new Date(a.createdAt).toLocaleDateString()}
+                  {a.helium10Calls !== null &&
+                    ` · ${a.helium10Calls} Helium10 calls (~$${(a.helium10Calls * HELIUM10_COST_PER_CALL).toFixed(2)})`}
+                  {a.hasMainImageConcept && " · with main image concept"}
+                </div>
+                <a href={`/audit/${a.shareToken}`} target="_blank" rel="noreferrer" style={{ fontWeight: 600 }}>
+                  {a.status === "approved" ? "Open shareable link ↗" : "Preview draft ↗"}
+                </a>
+                {a.reviewNote && (
+                  <p style={{ margin: "8px 0 0" }}>
+                    <em>{a.reviewNote}</em> <small style={{ color: "var(--muted)" }}>· {a.reviewedBy}</small>
+                  </p>
+                )}
+                {a.status === "draft" && (
+                  <form action={reviewAuditAction.bind(null, p.id, a.id)} style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                    <input type="text" name="note" placeholder="Feedback on format/content (optional)" style={{ flex: 1, minWidth: 160 }} />
+                    <button type="submit" name="decision" value="approved">
+                      Approve
+                    </button>
+                    <button type="submit" name="decision" value="rejected" style={{ background: "var(--paper-2)", color: "var(--ink)" }}>
+                      Reject
+                    </button>
+                  </form>
+                )}
+              </div>
+            ))
           )}
         </section>
 

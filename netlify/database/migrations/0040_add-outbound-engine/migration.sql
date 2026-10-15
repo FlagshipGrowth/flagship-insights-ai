@@ -90,17 +90,26 @@ create table outbound_suppressions (
     unique (kind, value)
 );
 
+-- One audit per run on a prospect. `findings` holds the structured audit (lib/outbound-audit.ts's
+-- AuditFindings). The page a prospect sees is /audit/<share_token> and only renders once an owner
+-- has approved it; drafts are previewed inside the CRM.
 create table outbound_audits (
     id                       uuid primary key default gen_random_uuid(),
     prospect_id              uuid not null references outbound_prospects(id) on delete cascade,
     kind                     text not null check (kind in ('deep', 'light', 'launch')),
     status                   text not null default 'draft' check (status in ('draft', 'approved', 'rejected')),
-    findings                 jsonb not null default '[]',
-    asset_url                text,
-    main_image_concept_url   text,
+    share_token              text not null unique default replace(gen_random_uuid()::text, '-', ''),
+    headline                 text,
+    findings                 jsonb not null default '{}',
+    -- The brand's real main image (public Amazon URL) and our AI concept of it, stored in Netlify
+    -- Blobs (store "outbound-audit-images") so the link never expires.
+    original_image_url       text,
+    main_image_blob_key      text,
+    main_image_content_type  text,
     helium10_calls           integer,
     reviewed_by              text,
     reviewed_at              timestamptz,
+    review_note              text,
     created_at               timestamptz not null default now()
 );
 create index outbound_audits_prospect_idx on outbound_audits(prospect_id);

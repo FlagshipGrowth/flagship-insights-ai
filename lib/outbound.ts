@@ -461,15 +461,13 @@ export interface ProspectDetail extends ProspectRow {
     personalDetail: string | null;
     isPrimary: boolean;
   }[];
-  audits: { id: string; kind: string; status: string; assetUrl: string | null; helium10Calls: number | null; createdAt: string }[];
 }
 
 export async function getProspectDetail(id: string): Promise<ProspectDetail | null> {
   const sql = getDb();
-  const [[p], contacts, audits] = await Promise.all([
+  const [[p], contacts] = await Promise.all([
     sql`select * from outbound_prospects where id = ${id}`,
     sql`select * from outbound_contacts where prospect_id = ${id} order by is_primary desc, created_at`,
-    sql`select id, kind, status, asset_url, helium10_calls, created_at from outbound_audits where prospect_id = ${id} order by created_at desc`,
   ]);
   if (!p) return null;
   const primary = contacts[0];
@@ -506,14 +504,6 @@ export async function getProspectDetail(id: string): Promise<ProspectDetail | nu
       instagramHandle: c.instagram_handle,
       personalDetail: c.personal_detail,
       isPrimary: c.is_primary,
-    })),
-    audits: audits.map((a: any) => ({
-      id: a.id,
-      kind: a.kind,
-      status: a.status,
-      assetUrl: a.asset_url,
-      helium10Calls: a.helium10_calls,
-      createdAt: new Date(a.created_at).toISOString(),
     })),
   };
 }

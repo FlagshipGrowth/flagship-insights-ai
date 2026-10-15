@@ -17,6 +17,7 @@ import {
 } from "@/lib/outbound";
 import { SIGNAL_KEYS, SIGNAL_LABELS, type ScoringWeights, type Tier } from "@/lib/outbound-scoring";
 import { TIER_TREATMENT } from "@/lib/outbound-sequence";
+import { getPilotStats, HELIUM10_COST_PER_CALL } from "@/lib/outbound-audit";
 import { OutboundTierBadge } from "@/components/OutboundTierBadge";
 
 const TIERS: Tier[] = ["A", "B", "C"];
@@ -83,6 +84,7 @@ export default async function OutboundPage({
     getWeightsHistory(),
     getSuppressions(),
   ]);
+  const pilot = await getPilotStats();
   const active = weightsHistory[0];
 
   return (
@@ -108,6 +110,38 @@ export default async function OutboundPage({
         <Stat label="Added today" value={summary.addedToday} />
         <Stat label="Suppressed / disqualified" value={summary.suppressedOrDisqualified} />
       </div>
+
+      <section className="card" style={{ marginBottom: 20 }}>
+        <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>Audit pilot</h2>
+        <p style={{ marginTop: 0 }}>
+          <small style={{ color: "var(--muted)" }}>
+            Gate before scaling: approve the audit format and the cost per audit. Cost uses Helium10&apos;s top-up price
+            (${HELIUM10_COST_PER_CALL.toFixed(2)} per call). Review each draft on its prospect page.
+          </small>
+        </p>
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap", fontSize: "0.9rem" }}>
+          <span>
+            <strong>{pilot.total}</strong> audits ({pilot.draft} to review, {pilot.approved} approved, {pilot.rejected} rejected)
+          </span>
+          <span>
+            Avg Helium10 calls: <strong>{pilot.avgHelium10Calls === null ? "–" : pilot.avgHelium10Calls.toFixed(1)}</strong>
+          </span>
+          <span>
+            Cost per audit: <strong>{pilot.avgCostPerAudit === null ? "–" : `$${pilot.avgCostPerAudit.toFixed(2)}`}</strong>
+          </span>
+          <span>
+            Helium10 calls this month: <strong>{pilot.helium10CallsThisMonth}</strong> / 1,000 included
+          </span>
+          <span>
+            Tier A/B waiting: <strong>{pilot.awaitingAudit}</strong>
+          </span>
+        </div>
+        {pilot.draft > 0 && (
+          <p style={{ marginBottom: 0 }}>
+            <a href="?status=audited">Show prospects with an audit to review →</a>
+          </p>
+        )}
+      </section>
 
       <section style={{ marginBottom: 28 }}>
         <form method="GET" style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>

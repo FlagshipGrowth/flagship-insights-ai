@@ -140,12 +140,12 @@ export default async function AgentsPage() {
           />
           <AgentCard
             name="Outbound Sales Engine"
-            status="Phase 1 of 5"
+            status="Phase 2 of 5"
             statusVariant="pending"
-            description="Sources $20k+/mo Amazon and DTC brands with Helium10, scores each one 0-100 on listing gaps, channel gaps, BSR trend, revenue fit and trigger events, and sorts them into tiers A-C. Later phases add audits, a multi-channel sequence, A/B testing and reply handling. Phase 1 (CRM tables and scoring) is built; nothing is sent to prospects yet."
+            description="Sources $20k+/mo Amazon and DTC brands with Helium10, scores each one 0-100 on listing gaps, channel gaps, BSR trend, revenue fit and trigger events, and sorts them into tiers A-C. Tier A/B brands get a deep audit: keyword gaps, a competitor benchmark, image stack, A+ and ads fixes, and an AI concept of their main image built from their real product photo. Every audit is a draft until it's approved. Nothing is sent to prospects yet."
             facts={[
-              { label: "Scope", value: "New-business prospects only, never current clients or CRM leads" },
-              { label: "Trigger", value: "Sourcing agent posts to /api/outbound/ingest (pilot run first)" },
+              { label: "Scope", value: "New-business prospects only, never clients, partners, warm leads or CRM leads" },
+              { label: "Trigger", value: "Sourcing agent posts to /api/outbound/ingest; audit agent claims Tier A/B from /api/outbound/audit-queue" },
               { label: "Next gate", value: "10-brand audit pilot: Joey approves audit format and cost per audit" },
             ]}
             href="/internal/crm/outbound"
