@@ -131,6 +131,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <h1 style={{ margin: 0 }}>CRM</h1>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <a href="/internal/crm/outbound">Outbound engine</a>
           <a href="/internal/crm/bulk-upload">Bulk upload leads</a>
           <AddLeadModal owners={owners} action={createLeadAction} />
         </div>

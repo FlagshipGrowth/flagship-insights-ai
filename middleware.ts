@@ -13,6 +13,12 @@ const isPublicRoute = createRouteMatcher([
   "/api/marketing/creative-image/(.*)", // meant to be embeddable as a plain <img src> with no auth
   "/api/tiktok-shop/sync", // verified via its own shared-secret check, not Clerk — see route.ts
   "/api/sellerise/sync", // verified via its own shared-secret check, not Clerk — see route.ts
+  "/api/outbound/ingest", // same shared-secret check, for the outbound-sourcing agent
+  "/api/outbound/audit-queue", // same shared-secret check, for the outbound-audit agent
+  "/api/outbound/audits", // same shared-secret check, for the outbound-audit agent
+  "/api/outbound/replies", // same shared-secret check, for the sending tool's reply webhook
+  "/api/outbound/audit-image/(.*)", // public once the audit is approved; checks owner itself before that
+  "/audit/(.*)", // prospect-facing audit page; only renders approved audits to anyone but owners
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

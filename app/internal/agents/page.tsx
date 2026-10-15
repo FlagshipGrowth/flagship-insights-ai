@@ -138,6 +138,19 @@ export default async function AgentsPage() {
             name="QuickBooks Financial Agent"
             description="Surfaces P&L, cash flow, and other financial insights into Admin View automatically — blocked on registering a QuickBooks Developer app."
           />
+          <AgentCard
+            name="Outbound Sales Engine"
+            status="Built, not sending"
+            statusVariant="pending"
+            description="Sources $20k+/mo Amazon and DTC brands with Helium10 and scores them into tiers A-C. Tier A/B brands get a deep audit with an AI main-image concept. Every brand then gets a ~4-week sequence written in Joey's voice: email from the engine, LinkedIn and Instagram queued for a person to send. It stops the moment they reply. Replies are triaged automatically: interested goes to the CRM and Slack, opt-outs are honored everywhere. A day-1 email A/B test always runs. Nothing reaches a prospect until sending is turned on and a sending tool is connected."
+            facts={[
+              { label: "Scope", value: "New-business prospects only, never clients, partners, warm leads or CRM leads" },
+              { label: "Trigger", value: "Weekdays: daily run writes and schedules sequences; sends spread every 15 min; weekly report Mondays" },
+              { label: "Blocked on", value: "Audit pilot sign-off, sending tool + warmed inboxes, email verifier" },
+            ]}
+            href="/internal/crm/outbound"
+            linkLabel="Open Outbound →"
+          />
           <PlannedCard
             name="CRM Follow-up Agent"
             description="Watches the sales pipeline for stale leads and drafts follow-up outreach for review, instead of leads going quiet in the New/Hot queue."
