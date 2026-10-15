@@ -345,6 +345,14 @@ export default async function ProspectPage({ params }: { params: Promise<{ prosp
                 </div>
                 <div style={{ color: "var(--muted)", margin: "4px 0 8px" }}>
                   {a.kind} · {new Date(a.createdAt).toLocaleDateString()}
+                  {a.auditedProduct && (
+                    <>
+                      {" · ASIN "}
+                      <a href={`https://www.amazon.com/dp/${a.auditedProduct.asin}`} target="_blank" rel="noreferrer">
+                        {a.auditedProduct.asin}
+                      </a>
+                    </>
+                  )}
                   {a.helium10Calls !== null &&
                     ` · ${a.helium10Calls} Helium10 calls (~$${(a.helium10Calls * HELIUM10_COST_PER_CALL).toFixed(2)})`}
                   {a.hasMainImageConcept && " · with main image concept"}
