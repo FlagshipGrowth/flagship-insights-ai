@@ -8,10 +8,12 @@ import {
   updateLeadStage,
   bulkUpdateLeadStage,
   deleteLead,
+  bulkDeleteLeads,
   setLeadHot,
   toggleLeadHot,
   updateLeadValue,
   updateLeadSource,
+  leadChannel,
   LEAD_STAGES,
   LEAD_STAGE_LABELS,
 } from "@/lib/leads";
@@ -19,6 +21,7 @@ import { AddLeadModal } from "@/components/AddLeadModal";
 import { LeadStageSelect } from "@/components/LeadStageSelect";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { LeadsTable } from "@/components/LeadsTable";
+import { ViewSubmissionModal } from "@/components/ViewSubmissionModal";
 
 const PIPELINE_STAGES = LEAD_STAGES.filter((s) => s !== "new");
 
@@ -60,6 +63,14 @@ async function deleteLeadAction(leadId: string) {
   const ctx = await getUserContext();
   if (!ctx || !isOwner(ctx)) return;
   await deleteLead(leadId);
+  revalidatePath("/internal/crm");
+}
+
+async function bulkDeleteLeadsAction(leadIds: string[]) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isOwner(ctx)) return;
+  await bulkDeleteLeads(leadIds);
   revalidatePath("/internal/crm");
 }
 
@@ -121,6 +132,8 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
     estimatedValue: l.estimatedValue,
     isHot: l.isHot,
     stage: l.stage,
+    rawSubmission: l.rawSubmission,
+    channel: leadChannel(l),
   });
 
   return (
@@ -161,6 +174,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
           moveOneAction={moveOnePlainAction}
           deleteAction={deleteLeadAction}
           bulkMoveAction={bulkMoveLeadsAction}
+          bulkDeleteAction={bulkDeleteLeadsAction}
           updateValueAction={updateValueAction}
           updateSourceAction={updateSourceAction}
         />
@@ -175,6 +189,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
           moveOneAction={moveOnePlainAction}
           deleteAction={deleteLeadAction}
           bulkMoveAction={bulkMoveLeadsAction}
+          bulkDeleteAction={bulkDeleteLeadsAction}
           updateValueAction={updateValueAction}
           updateSourceAction={updateSourceAction}
         />
@@ -200,6 +215,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
                       const boundDelete = deleteLeadAction.bind(null, lead.id);
                       const boundToggleHot = toggleHotAction.bind(null, lead.id, lead.isHot);
                       const titleParts = [lead.contactName, lead.email, lead.assignedToEmail && `Assigned: ${lead.assignedToEmail}`, lead.notes].filter(Boolean);
+                      const channel = leadChannel(lead);
                       return (
                         <div
                           key={lead.id}
@@ -221,6 +237,23 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
                           <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>
                             {lead.companyName}
                           </span>
+                          {lead.rawSubmission && (
+                            <ViewSubmissionModal companyName={lead.companyName} submission={lead.rawSubmission as Record<string, unknown>} />
+                          )}
+                          {channel && (
+                            <small
+                              style={{
+                                padding: "0 4px",
+                                borderRadius: 4,
+                                fontWeight: 600,
+                                background: channel === "paid" ? "var(--accent-lime)" : "var(--paper-2)",
+                                color: "var(--ink)",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {channel === "paid" ? "Paid" : "Organic"}
+                            </small>
+                          )}
                           <span style={{ color: "var(--muted)", flexShrink: 0 }}>
                             {lead.estimatedValue !== null ? `$${lead.estimatedValue.toLocaleString()}` : ""}
                           </span>
