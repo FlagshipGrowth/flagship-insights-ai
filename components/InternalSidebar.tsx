@@ -16,6 +16,7 @@ const ICONS = {
   check: "M5 12l5 5L20 7",
   shield: "M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3ZM9 12l2 2 4-4",
   eye: "M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12ZM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z",
+  send: "M21 3 10 14M21 3l-7 18-4-7-7-4 18-7Z",
   spark: "M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8",
 };
 
@@ -32,6 +33,7 @@ export function InternalSidebar({ owner, pendingUsersCount, email }: { owner: bo
     { href: "/internal/marketing", label: "Marketing Efforts", icon: "chart" },
     { href: "/internal/agents", label: "Agents", icon: "spark" },
     { href: "/internal/crm", label: "CRM", icon: "briefcase" },
+    { href: "/internal/crm/outbound", label: "Outbound Engine", icon: "send" },
     { href: "/internal/employees", label: "Employees", icon: "users" },
     { href: "/internal/tasks", label: "Tasks", icon: "check" },
     { href: "/internal/approvals", label: "Sign Up Approval", icon: "shield", badge: pendingUsersCount },
