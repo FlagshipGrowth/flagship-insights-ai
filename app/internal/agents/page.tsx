@@ -138,6 +138,19 @@ export default async function AgentsPage() {
             name="QuickBooks Financial Agent"
             description="Surfaces P&L, cash flow, and other financial insights into Admin View automatically — blocked on registering a QuickBooks Developer app."
           />
+          <AgentCard
+            name="Outbound Sales Engine"
+            status="Phase 1 of 5"
+            statusVariant="pending"
+            description="Sources $20k+/mo Amazon and DTC brands with Helium10, scores each one 0-100 on listing gaps, channel gaps, BSR trend, revenue fit and trigger events, and sorts them into tiers A-C. Later phases add audits, a multi-channel sequence, A/B testing and reply handling. Phase 1 (CRM tables and scoring) is built; nothing is sent to prospects yet."
+            facts={[
+              { label: "Scope", value: "New-business prospects only, never current clients or CRM leads" },
+              { label: "Trigger", value: "Sourcing agent posts to /api/outbound/ingest (pilot run first)" },
+              { label: "Next gate", value: "10-brand audit pilot: Joey approves audit format and cost per audit" },
+            ]}
+            href="/internal/crm/outbound"
+            linkLabel="Open Outbound →"
+          />
           <PlannedCard
             name="CRM Follow-up Agent"
             description="Watches the sales pipeline for stale leads and drafts follow-up outreach for review, instead of leads going quiet in the New/Hot queue."

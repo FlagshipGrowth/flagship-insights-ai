@@ -11,3 +11,4 @@ out/
 .tiktok-shop-sync-secret
 .sellerise-sync-secret
 .anthropic-api-key
+.outbound-sync-secret

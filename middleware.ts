@@ -13,6 +13,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/marketing/creative-image/(.*)", // meant to be embeddable as a plain <img src> with no auth
   "/api/tiktok-shop/sync", // verified via its own shared-secret check, not Clerk — see route.ts
   "/api/sellerise/sync", // verified via its own shared-secret check, not Clerk — see route.ts
+  "/api/outbound/ingest", // same shared-secret check, for the outbound-sourcing agent
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

@@ -79,14 +79,16 @@ export interface NewLeadInput {
 
 /** Shared insert used by the "+ Add lead" modal, the CSV bulk-upload route, and the public
  * contact-form endpoint — every lead-creation path funnels through here. */
-export async function insertLead(input: NewLeadInput): Promise<void> {
+export async function insertLead(input: NewLeadInput): Promise<string> {
   const sql = getDb();
-  await sql`
+  const rows = await sql`
     insert into leads (company_name, contact_name, email, source, estimated_value, notes, assigned_to_id, stage, is_hot)
     values (${input.companyName}, ${input.contactName ?? null}, ${input.email ?? null},
             ${input.source ?? null}, ${input.estimatedValue ?? DEFAULT_ESTIMATED_VALUE}, ${input.notes ?? null},
             ${input.assignedToId ?? null}, ${input.stage ?? "new"}, ${input.isHot ?? false})
+    returning id
   `;
+  return rows[0].id;
 }
 
 export async function createLead(formData: FormData): Promise<void> {
