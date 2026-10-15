@@ -194,6 +194,20 @@ export function parseProspectInput(input: unknown): ProspectInput | string {
   };
 }
 
+// Names of 6+ characters also match as a prefix either way, so "Dormeo" catches "Dormeo Home" and
+// "Heavenly Bodies Studio" catches "Heavenly Bodies". Shorter names (POW, Verb, WINK, Zani) only
+// match exactly, or they'd block unrelated brands like "Powerful Foods".
+const PREFIX_MATCH_MIN_LENGTH = 6;
+
+function nameMatches(key: string, names: Set<string>): boolean {
+  if (names.has(key)) return true;
+  for (const n of names) {
+    if (n.length < PREFIX_MATCH_MIN_LENGTH || key.length < PREFIX_MATCH_MIN_LENGTH) continue;
+    if (key.startsWith(n) || n.startsWith(key)) return true;
+  }
+  return false;
+}
+
 export interface IngestResult {
   inserted: { id: string; companyName: string; score: number; tier: Tier; status: ProspectStatus }[];
   skipped: { companyName: string; reason: string }[];
@@ -227,13 +241,13 @@ export async function ingestProspects(inputs: ProspectInput[], source: string): 
   for (const p of inputs) {
     const key = normalizeName(p.companyName);
     const domain = p.website ? normalizeDomain(p.website) : null;
-    const skipReason = clientSet.has(key)
+    const skipReason = nameMatches(key, clientSet)
       ? "Current client"
-      : suppressed.company.has(key)
+      : nameMatches(key, suppressed.company)
         ? "Suppressed (company)"
         : domain && suppressed.domain.has(domain)
           ? "Suppressed (domain)"
-          : leadNameSet.has(key)
+          : nameMatches(key, leadNameSet)
             ? "Already in the CRM pipeline"
             : prospectSet.has(key)
               ? "Already a prospect"
