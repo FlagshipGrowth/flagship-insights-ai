@@ -127,6 +127,12 @@ flagship-insights-ai/
     - Tiers lowered to A 70+ / B 50-69 / C <50 (`tierForScore`). 0044 re-tiers existing prospects.
     - Audits gained `reviewInsights` (Helium10 `get_asin_review_analysis`, ~8 calls/brand now) and `pricingNotes`; `adsGaps` now names competitors advertising on their listing. The audit page shows a "Where you sell today" strip from the prospect's `onWalmart`/`onTikTokShop` facts.
     - "Preview emails" on each prospect page (`requestPreview` → `netlify/functions/outbound-preview-background.ts` → `writePreview`) drafts the sequence from the latest non-rejected audit into `outbound_prospects.preview_messages` without enrolling or sending.
+  - **Branded audit page (2026-10-15)**: `app/audit/[token]/FlagshipSections.tsx` adds Flagship's pitch from Joey's overview deck around the audit:
+    - a dark header with stats ($650M+ generated, 200+ partners, 30+ yrs, 10+ channels)
+    - a three-channel section that flags the channels the brand isn't on
+    - the Opopop and Ramen Bae main-image case studies, the first-30-days plan, and the brand-partner logo wall with website results
+    - Joey/Vinny bios, the Amazon SPN Verified Partner and TikTok Shop Certified Agency badges, and Joey's direct contact in the CTA
+    - Images were cut from the deck into `public/outbound/`. Only quote numbers that appear in the deck or on flagshipgrowth.com/work. The deck's onboarding slide (personal invite email, Helium10 referral link) is deliberately not used.
   - `insertLead` now returns the new lead's id (was `void`); existing callers ignore it.
   - **Not done yet / needs Joey**: set `OUTBOUND_SYNC_SECRET` in Netlify env and save the same value to `.outbound-sync-secret` locally, then schedule the sourcing agent. Then schedule the audit agent with batch size 10 for the pilot; approving its audits (format + measured cost per audit) is the phase 2 gate before turning sending on. Also set `OUTBOUND_SLACK_CHANNEL_ID`, choose the sending tool (then add its `SENDERS` adapter and set `OUTBOUND_SENDER`), fill in `lib/outbound-proof-bank.ts` naming permissions/results. Domain purchase + inbox warmup should start now in parallel. Open decisions from the plan (email finder/verifier, pre-screen data API, VA for LinkedIn/Instagram, outreach domains, case-study permissions) are still open.
 
