@@ -163,7 +163,9 @@ export interface AuditQueueItem {
   researchNotes: string | null;
 }
 
-/** Highest-scoring Tier A/B prospects that haven't been audited yet. Claiming them flips their
+/** Highest-scoring Tier A/B prospects that haven't been audited yet and already have a verified
+ * email (Joey, 2026-10-15: find the email first, so no Helium10 credits go on brands we can't
+ * contact; lib/outbound-email-finder.ts runs right after sourcing). Claiming them flips their
  * status to audit_pending, so two overlapping agent runs never audit the same brand. A claim that
  * never got an audit posted is released after a day. */
 export async function claimAuditQueue(limit: number): Promise<AuditQueueItem[]> {
@@ -175,6 +177,8 @@ export async function claimAuditQueue(limit: number): Promise<AuditQueueItem[]> 
       where (tier in ('A', 'B') or audit_requested)
         -- A claim older than a day means that agent run died mid-way: hand it out again.
         and (status = 'scored' or (status = 'audit_pending' and updated_at < now() - interval '1 day'))
+        and exists (select 1 from outbound_contacts c
+                    where c.prospect_id = outbound_prospects.id and c.email is not null and c.email_verified)
       order by audit_requested desc, score desc, created_at
       limit ${limit}
       for update skip locked

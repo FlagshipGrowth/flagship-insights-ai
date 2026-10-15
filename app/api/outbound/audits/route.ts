@@ -1,6 +1,4 @@
-import { after } from "next/server";
 import { AUDIT_KINDS, createAudit, parseFindings, type AuditKind } from "@/lib/outbound-audit";
-import { apolloConfigured, findEmailForProspect } from "@/lib/outbound-email-finder";
 
 // Called by the outbound-audit agent once per audited brand. Same shared-secret check as
 // /api/outbound/ingest. The audit is stored as a draft: its public link stays dark until an owner
@@ -39,11 +37,6 @@ export async function POST(req: Request) {
   });
   if (typeof result === "string") return Response.json({ ok: false, error: result }, { status: 400 });
 
-  // Find the brand's decision-maker as soon as its audit exists (after the response, so the audit
-  // agent isn't kept waiting). The daily step retries any brand this misses.
-  if (apolloConfigured()) {
-    after(() => findEmailForProspect(prospectId).catch((err) => console.error("apollo after audit", err)));
-  }
 
   const origin = new URL(req.url).origin;
   return Response.json({ ok: true, auditId: result.auditId, previewUrl: `${origin}/audit/${result.shareToken}` });

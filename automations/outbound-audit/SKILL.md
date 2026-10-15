@@ -15,7 +15,7 @@ Every call to the app goes through `python3 automations/outbound-post.py <endpoi
 
 STEP 1: CLAIM THE BATCH
 1. Write `{"limit": <batch size>}` to a scratch file and run `python3 automations/outbound-post.py audit-queue <that file> <scratch>/queue.json`.
-2. The response's `prospects` are now claimed for you. Each has prospectId, companyName, tier, score, launchTrack, primaryAsin, website, category, estMonthlyRevenue, facts (what sourcing already verified) and researchNotes. If it's empty, report that and stop.
+2. The response's `prospects` are now claimed for you. Only brands that already have a verified email are handed out, so every audit you write can actually be sent. Each has prospectId, companyName, tier, score, launchTrack, primaryAsin, website, category, estMonthlyRevenue, facts (what sourcing already verified) and researchNotes. If it's empty, report that and stop.
 
 STEP 2: DEEP AUDIT (Helium10 MCP, about 8 calls per brand)
 Load tools with ToolSearch "+helium10 listing competitors keywords" if they aren't loaded. Helium10 calls are a shared, limited budget (1,000/month across the team), so count every call you make per brand; you'll report the number. Aim for about 8:

@@ -23,7 +23,7 @@ For each brand's best-selling ASIN, read the listing with Helium10 `retrieve_lis
 Leave a field out entirely if you didn't verify it. A missing field scores as "no gap"; a wrong field scores as a gap that doesn't exist. Never guess.
 
 STEP 3: FIND THE DECISION-MAKER
-Contacts are optional. Post the brand even if you find nobody; the team adds contacts later, and nothing can be emailed without a verified address anyway. Find the founder, CEO, owner or director of ecommerce. Record full name, title, LinkedIn URL and the brand's Instagram handle. For email: only set emailVerified: true if a verifier confirmed it. A guessed pattern (first@brand.com) is emailVerified: false. Add one short personal detail per contact (a podcast they were on, a post, their background).
+Contacts are optional, but **the brand's website is essential**: right after you post, the server looks up a verified email with Apollo from the website's domain, and a brand with no verified email is never audited or contacted. Post the brand even if you find nobody. Find the founder, CEO, owner or director of ecommerce. Record full name, title, LinkedIn URL and the brand's Instagram handle. For email: only set emailVerified: true if a verifier confirmed it. A guessed pattern (first@brand.com) is emailVerified: false. Add one short personal detail per contact (a podcast they were on, a post, their background).
 
 STEP 4: RESEARCH NOTES
 2-4 sentences per brand: the brand story, product line, recent news, and the single most specific listing finding you saw. Specific to this brand only, nothing generic.
