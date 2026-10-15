@@ -13,6 +13,25 @@ import type { Tier } from "./outbound-scoring";
 export const BOOKING_URL = "https://calendly.com/joey-flagshipgrowth/30min";
 export const NEEDS_JOEY = "[NEEDS JOEY";
 
+// Joey (2026-10-15): one signature on every email, plain text with no links or images, which
+// delivers best from cold inboxes. Added here, not by the writer, so it's identical everywhere:
+// previews, the review queue, test emails and what Instantly sends.
+export const EMAIL_SIGNATURE = "Joey Giazzon\nCo-Founder, Flagship Growth";
+
+/** Drops any sign-off the writer added anyway, then appends the fixed signature. */
+export function withSignature(body: string): string {
+  const lines = body.trim().split(/\r?\n/);
+  while (lines.length > 1 && /^\s*(-+\s*)?(joey( giazzon)?|best|thanks|cheers|talk soon|best regards|regards)[,.]?\s*$/i.test(lines[lines.length - 1])) {
+    lines.pop();
+  }
+  return `${lines.join("\n").trim()}\n\n${EMAIL_SIGNATURE}`;
+}
+
+/** For bodies written before the signature existed (or edited in review): add it if missing. */
+export function ensureSignature(body: string): string {
+  return body.trim().endsWith(EMAIL_SIGNATURE) ? body.trim() : withSignature(body);
+}
+
 const VOICE = `You write cold outreach for Joey Giazzon, co-founder of Flagship Growth (an agency that runs Amazon, Walmart and TikTok Shop for consumer brands).
 
 Voice: founder to founder. Direct, concise, casual, like Joey typed it himself in Slack. The point of every message is to be genuinely useful: share something specific and insightful about their Amazon listing that they can act on, whether or not they ever talk to us. Informative and helpful, never salesy or pushy. No pressure, no urgency tricks, no "just bumping this", no guilt, no hype words ("skyrocket", "game-changer", "unlock"). No corporate throat-clearing ("I hope this finds you well", "I wanted to reach out"), no buzzwords, no em-dash chains, no exclamation marks, no emojis. One clear, low-key ask per message at most. Plain text only, no markdown, no bullet points.
@@ -22,7 +41,7 @@ Hard rules:
 - Every finding you mention must come from the audit or research data given, and be specific to this brand.
 - Write for a founder who isn't an Amazon expert: no jargon (never "BSR", "ASIN", "LQS", "PPC", "A+ module" without saying what it is). Turn numbers into what they mean for sales, e.g. "it's selling at about half its July pace" rather than a rank change.
 - Lead with Amazon listing fixes from the audit. Don't pitch a retainer or services. The only ask is a free walkthrough of the audit on a call, offered, never pushed.
-- Emails sign off with just "Joey". First email under 90 words; follow-ups under 70; the breakup under 40.
+- Emails have no sign-off and no signature: don't write "Joey", "Best" or a name at the end. The same signature is added to every email automatically. First email under 90 words; follow-ups under 70; the breakup under 40.
 - Every email ends with one short line letting them opt out, like "If it's not relevant, just say so and I'll stop here." Never on LinkedIn or Instagram.
 - LinkedIn connection notes are under 280 characters with no pitch and no link. Instagram DMs are casual, under 60 words, about their product or content.`;
 
@@ -138,6 +157,6 @@ export async function writeSequence(input: CopyInput): Promise<WrittenTouch[]> {
   return steps.flatMap((s) => {
     const t = byDay.get(s.day);
     if (!t?.body?.trim()) return [];
-    return [{ day: s.day, channel: s.channel, kind: s.kind, subject: s.channel === "email" ? t.subject?.trim() || null : null, body: t.body.trim() }];
+    return [{ day: s.day, channel: s.channel, kind: s.kind, subject: s.channel === "email" ? t.subject?.trim() || null : null, body: s.channel === "email" ? withSignature(t.body) : t.body.trim() }];
   });
 }

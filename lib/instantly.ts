@@ -4,6 +4,7 @@
 // threads them under the first email. Keyed by INSTANTLY_API_KEY (Netlify env).
 
 import { SEQUENCE_STEPS } from "./outbound-sequence";
+import { ensureSignature } from "./outbound-copy";
 
 const BASE = "https://api.instantly.ai/api/v2";
 
@@ -56,9 +57,19 @@ export async function listAccounts(): Promise<InstantlyAccount[]> {
   return out;
 }
 
-/** Accounts healthy enough to send: active, and warmup not banned or flagged. */
+// Joey (2026-10-15): cold email never goes out from the main domain, to protect it. Inboxes on
+// these domains are never put on the engine's campaign, whatever is ticked.
+export const PROTECTED_DOMAINS = ["flagshipgrowth.com"];
+
+export function isProtectedInbox(email: string): boolean {
+  const domain = email.split("@")[1]?.toLowerCase() ?? "";
+  return PROTECTED_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`));
+}
+
+/** Accounts allowed and healthy enough to send: not on a protected domain, active, and warmup
+ * not banned or flagged. */
 export function sendableAccounts(accounts: InstantlyAccount[]): InstantlyAccount[] {
-  return accounts.filter((a) => a.status === 1 && a.warmupStatus >= 0);
+  return accounts.filter((a) => !isProtectedInbox(a.email) && a.status === 1 && a.warmupStatus >= 0);
 }
 
 /** The engine's campaign: 5 steps on the plan's day gaps, weekdays 9-5 Central, stop on reply. */
@@ -133,7 +144,7 @@ export interface LeadInput {
 
 export async function addLead(input: LeadInput): Promise<string> {
   const vars: Record<string, string> = { subject1: input.subject1 };
-  input.bodies.forEach((b, i) => (vars[`body${i + 1}`] = toHtml(b)));
+  input.bodies.forEach((b, i) => (vars[`body${i + 1}`] = toHtml(ensureSignature(b))));
   const r = await call<{ id: string }>("POST", "/leads", {
     campaign: input.campaignId,
     email: input.email,

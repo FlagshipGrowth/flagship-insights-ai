@@ -13,6 +13,7 @@ import {
   type InstantlyAccount,
 } from "./instantly";
 import { getSettings } from "./outbound-sequencer";
+import { ensureSignature } from "./outbound-copy";
 
 // The owner-facing side of the Instantly connection (/internal/crm/outbound): connect once,
 // keep the campaign's on/off in step with "Sending on", and send a test email to yourself.
@@ -90,7 +91,9 @@ export async function syncCampaignState(sendingEnabled: boolean): Promise<void> 
   else await pauseCampaign(settings.instantlyCampaignId);
 }
 
-/** Sends the first email of the most recent preview to `to` (the signed-in owner, never a prospect). */
+/** Sends the first email of the most recent preview to `to` (the signed-in owner, never a
+ * prospect). From a sending inbox, never the owner's own address, so it shows exactly what a brand
+ * would get. */
 export async function sendTestToMe(to: string): Promise<string> {
   const sendable = sendableAccounts(await listAccounts());
   if (sendable.length === 0) throw new Error("No active sending inbox in Instantly.");
@@ -102,7 +105,7 @@ export async function sendTestToMe(to: string): Promise<string> {
   `) as any[];
   const first = p ? (p.preview_messages as any[]).find((m) => m.channel === "email") : null;
   const subject = `[TEST: ${p?.company_name ?? "engine"}] ${first?.subject ?? "Flagship outbound engine test"}`;
-  const body = first?.body ?? "This is a test from the Flagship outbound engine. If you're reading this, Instantly can send.";
+  const body = ensureSignature(first?.body ?? "This is a test from the Flagship outbound engine. If you're reading this, Instantly can send.");
   await sendTestEmail(sendable[0].email, to, subject, body);
   return `Sent from ${sendable[0].email} to ${to}${p ? ` (${p.company_name}'s first email)` : ""}.`;
 }

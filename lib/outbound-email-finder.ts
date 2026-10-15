@@ -6,7 +6,9 @@ import { normalizeDomain } from "./outbound";
 // turns a scored brand into one that can be contacted. Only Apollo's "verified" status counts.
 //
 // Flow per brand: if sourcing already found a person, look them up by name + domain; otherwise
-// search the domain for a founder/owner/C-level and enrich the best match. Every lookup is
+// search the domain for a founder/owner/C-level, then an e-commerce lead, and enrich the best
+// match. Runs automatically right after a brand's audit is posted, and daily for any brand still
+// missing an email. Every lookup is
 // remembered (email_lookup_at/result) so a brand isn't re-checked and re-billed every day.
 
 const APOLLO = "https://api.apollo.io/api/v1";
@@ -53,27 +55,35 @@ function toFound(p: any): FoundPerson | null {
   };
 }
 
-async function findPerson(domain: string, knownName: string | null, knownLinkedin: string | null): Promise<FoundPerson | null> {
-  if (knownLinkedin || knownName) {
-    const params: Record<string, string> = { domain, reveal_personal_emails: "false" };
-    if (knownLinkedin) params.linkedin_url = knownLinkedin;
-    if (knownName) params.name = knownName;
-    const found = toFound((await apollo("/people/match", params)).person);
-    if (found?.email) return found;
-  }
-  const search = await apollo("/mixed_people/api_search", {
-    q_organization_domains_list: [domain],
-    person_seniorities: ["founder", "owner", "c_suite"],
-    per_page: "5",
-  });
+// Joey (2026-10-15): founder/owner/CEO first; if none has a verified email, the person who runs
+// e-commerce, Amazon or marketplaces.
+const LEADERS = { person_seniorities: ["founder", "owner", "c_suite"] };
+const ECOM_LEADS = {
+  person_titles: ["ecommerce", "e-commerce", "amazon", "marketplace", "digital commerce"],
+  person_seniorities: ["vp", "head", "director"],
+};
+
+async function searchAndVerify(domain: string, filter: Record<string, string[]>): Promise<FoundPerson | null> {
+  const search = await apollo("/mixed_people/api_search", { q_organization_domains_list: [domain], ...filter, per_page: "5" });
   const candidates: any[] = (search.people ?? []).filter((p: any) => p?.id);
-  // Prefer people Apollo says have an email, founders first.
+  // Prefer people Apollo says have an email.
   candidates.sort((a, b) => Number(!!b.has_email) - Number(!!a.has_email));
   for (const c of candidates.slice(0, 2)) {
     const found = toFound((await apollo("/people/match", { id: c.id, reveal_personal_emails: "false" })).person);
     if (found?.verified) return found;
   }
   return null;
+}
+
+async function findPerson(domain: string, knownName: string | null, knownLinkedin: string | null): Promise<FoundPerson | null> {
+  if (knownLinkedin || knownName) {
+    const params: Record<string, string> = { domain, reveal_personal_emails: "false" };
+    if (knownLinkedin) params.linkedin_url = knownLinkedin;
+    if (knownName) params.name = knownName;
+    const found = toFound((await apollo("/people/match", params)).person);
+    if (found?.verified) return found;
+  }
+  return (await searchAndVerify(domain, LEADERS)) ?? (await searchAndVerify(domain, ECOM_LEADS));
 }
 
 export interface LookupResult {
@@ -109,8 +119,7 @@ export async function findEmailForProspect(prospectId: string): Promise<LookupRe
     // Not remembered as a lookup, so a temporary Apollo error is retried next run.
     return { prospectId, companyName: p.company_name, result: (err as Error).message, email: null };
   }
-  if (!found?.email) return done("Apollo found no email for a founder or executive", null);
-  if (!found.verified) return done(`Apollo found ${found.email} but couldn't verify it, so it won't be emailed`, null);
+  if (!found?.email) return done("Apollo found no verified email for a founder, CEO or e-commerce lead", null);
 
   // The same person is never sequenced under two brands (unique index on lower(email)).
   const [taken] = (await sql`

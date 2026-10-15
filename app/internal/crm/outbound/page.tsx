@@ -20,6 +20,7 @@ import { TIER_TREATMENT } from "@/lib/outbound-sequence";
 import { getPilotStats, HELIUM10_COST_PER_CALL } from "@/lib/outbound-audit";
 import { getSettings, updateSettings } from "@/lib/outbound-sequencer";
 import { senderStatus } from "@/lib/outbound-sender";
+import { isProtectedInbox } from "@/lib/instantly";
 import { connectInstantly, getInstantlyOverview, sendTestToMe, syncCampaignState } from "@/lib/outbound-instantly-admin";
 import { apolloConfigured } from "@/lib/outbound-email-finder";
 import { OutboundTierBadge } from "@/components/OutboundTierBadge";
@@ -87,24 +88,6 @@ async function sendTestAction() {
     msg = `runError=${encodeURIComponent((err as Error).message)}`;
   }
   redirect(`/internal/crm/outbound?${msg}`);
-}
-
-async function findEmailsAction() {
-  "use server";
-  const ctx = await getUserContext();
-  if (!ctx || !isOwner(ctx)) return;
-  const origin = process.env.URL;
-  const secret = process.env.OUTBOUND_SYNC_SECRET;
-  if (!origin || !secret) redirect("/internal/crm/outbound?runError=OUTBOUND_SYNC_SECRET%20or%20URL%20is%20not%20set");
-  await fetch(`${origin}/.netlify/functions/outbound-find-emails-background`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${secret}` },
-  });
-  redirect(
-    `/internal/crm/outbound?instantlyNote=${encodeURIComponent(
-      "Apollo is looking up emails for up to 25 brands. Give it a couple of minutes, then open a brand to see what it found."
-    )}`
-  );
 }
 
 async function runDailyNowAction() {
@@ -281,18 +264,23 @@ export default async function OutboundPage({
         ) : (
           <form action={connectInstantlyAction} style={{ fontSize: "0.88rem" }}>
             <p style={{ marginTop: 0 }}>
-              Pick the inboxes the engine sends from. Connecting creates one paused campaign in Instantly with no brands in
-              it. Nothing sends until you tick Sending on.
+              Pick the inboxes the engine sends from. Inboxes on flagshipgrowth.com are never used. Connecting creates one
+              paused campaign in Instantly with no brands in it. Nothing sends until you tick Sending on.
             </p>
             {instantly.accounts.length === 0 && <p style={{ color: "#DC2626" }}>No inboxes found in Instantly.</p>}
             {instantly.accounts.map((a) => {
               const ok = instantly.sendable.some((s) => s.email === a.email);
+              const protectedInbox = isProtectedInbox(a.email);
               return (
                 <label key={a.email} style={{ display: "block", color: ok ? "inherit" : "var(--muted)" }}>
                   <input type="checkbox" name="inbox" value={a.email} defaultChecked={ok} disabled={!ok} /> {a.email}
                   <small style={{ color: "var(--muted)" }}>
                     {" "}
-                    {ok ? "active" : "not sendable (paused or erroring in Instantly)"}
+                    {ok
+                      ? "active"
+                      : protectedInbox
+                        ? "your main domain, never used for cold email"
+                        : "not sendable (paused or erroring in Instantly)"}
                     {a.warmupScore != null ? `, warmup score ${a.warmupScore}` : ""}
                   </small>
                 </label>
@@ -304,19 +292,16 @@ export default async function OutboundPage({
           </form>
         )}
         <hr style={{ margin: "14px 0", border: 0, borderTop: "1px solid var(--line, #e5e7eb)" }} />
-        {apolloConfigured() ? (
-          <form action={findEmailsAction} style={{ fontSize: "0.88rem" }}>
-            <button type="submit" style={{ background: "var(--paper-2)", color: "var(--ink)" }}>
-              Find emails with Apollo
-            </button>{" "}
+        <p style={{ margin: 0, fontSize: "0.88rem" }}>
+          {apolloConfigured() ? (
             <small style={{ color: "var(--muted)" }}>
-              Looks up the founder or an executive at brands with no verified email yet, audited brands first. Only emails
-              Apollo marks verified are used. Also runs on its own every weekday.
+              Emails are found automatically with Apollo as soon as a brand&apos;s audit is written (founder or CEO first,
+              then the e-commerce lead), and retried daily. Only emails Apollo marks verified are used.
             </small>
-          </form>
-        ) : (
-          <small style={{ color: "#DC2626" }}>APOLLO_API_KEY isn&apos;t set in Netlify.</small>
-        )}
+          ) : (
+            <small style={{ color: "#DC2626" }}>APOLLO_API_KEY isn&apos;t set in Netlify.</small>
+          )}
+        </p>
       </section>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 20 }}>
