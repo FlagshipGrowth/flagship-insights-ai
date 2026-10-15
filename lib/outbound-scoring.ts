@@ -77,9 +77,10 @@ export interface ScoreResult {
   signals: Record<SignalKey, SignalResult>;
 }
 
+// Lowered from 80/55 after the pilot (Joey, 2026-10-15): on real brands the best score was 73.
 export function tierForScore(score: number): Tier {
-  if (score >= 80) return "A";
-  if (score >= 55) return "B";
+  if (score >= 70) return "A";
+  if (score >= 50) return "B";
   return "C";
 }
 

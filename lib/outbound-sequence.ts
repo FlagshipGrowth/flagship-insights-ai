@@ -1,8 +1,8 @@
 import type { Tier } from "./outbound-scoring";
 
-// The ~4-week multi-channel sequence from the build plan. Stops the moment a brand replies on any
-// channel. Email goes out from the engine; LinkedIn/Instagram are queued for a person to send by
-// hand from Joey's real accounts, since automated sending violates those platforms' terms.
+// The email sequence. Stops the moment a brand replies. Joey (2026-10-15): 5 emails over 3 weeks,
+// email only for now. LinkedIn/Instagram steps can come back later as hand-sent touches; the
+// channel types stay so the queue code keeps working when they do.
 
 export type OutboundChannel = "email" | "linkedin" | "instagram";
 
@@ -14,25 +14,20 @@ export interface SequenceStep {
 }
 
 export const SEQUENCE_STEPS: SequenceStep[] = [
-  { day: 1, channel: "email", kind: "audit_hook", description: "Audit hook: the biggest listing finding, one line of credibility, link to the audit" },
-  { day: 2, channel: "linkedin", kind: "connection", description: "Connection request with a short personalized note, no pitch" },
-  { day: 4, channel: "email", kind: "value_add", description: "Value add: two more findings or a quick win" },
-  { day: 6, channel: "instagram", kind: "dm", description: "Casual DM about their product or content with the free audit offer" },
-  { day: 8, channel: "linkedin", kind: "audit_message", description: "If connected, short message referencing the audit" },
-  { day: 10, channel: "email", kind: "social_proof", description: "Social proof: client result matched to their category, ask for a call" },
-  { day: 17, channel: "email", kind: "new_angle", description: "New angle: trigger event, Walmart / TikTok Shop opportunity, or why now" },
-  { day: 20, channel: "linkedin_or_instagram", kind: "light_follow_up", description: "Light follow-up on whichever channel they engaged with" },
-  { day: 26, channel: "email", kind: "breakup", description: "Breakup note" },
+  { day: 1, channel: "email", kind: "audit_hook", description: "The single biggest Amazon listing finding from their audit, why it matters, and the audit link" },
+  { day: 4, channel: "email", kind: "value_add", description: "One more useful finding or a quick win they could do themselves this week" },
+  { day: 9, channel: "email", kind: "social_proof", description: "A matched client result as context for what fixing this tends to look like, offer the walkthrough" },
+  { day: 15, channel: "email", kind: "new_angle", description: "A new angle: a trigger event, or the Walmart / TikTok Shop gap if they aren't on one" },
+  { day: 21, channel: "email", kind: "breakup", description: "Short, friendly close: the audit stays theirs to keep either way" },
 ];
 
-/** Tier A runs all three channels; B and C are email only (C with a light-touch audit). */
-export function sequenceForTier(tier: Tier): SequenceStep[] {
-  if (tier === "A") return SEQUENCE_STEPS;
-  return SEQUENCE_STEPS.filter((s) => s.channel === "email");
+/** Email only for every tier for now (Joey, 2026-10-15). */
+export function sequenceForTier(_tier: Tier): SequenceStep[] {
+  return SEQUENCE_STEPS;
 }
 
 export const TIER_TREATMENT: Record<Tier, string> = {
-  A: "Deep Helium10 audit, all three channels, first in the daily send queue",
+  A: "Deep Helium10 audit, first in the daily send queue",
   B: "Deep audit, email only",
   C: "Light-touch email using public listing data, no deep audit",
 };

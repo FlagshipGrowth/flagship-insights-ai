@@ -68,6 +68,92 @@ function siteOrigin(): string {
   return process.env.URL ?? "https://flagship-insights-ai.netlify.app";
 }
 
+type CopyChannels = { email: boolean; linkedin: boolean; instagram: boolean };
+
+/** Builds the copy writer's input from a prospect row joined with its primary contact. */
+function copyInputFor(
+  p: any,
+  audit: { url: string; headline: string | null; findings: AuditFindings } | null,
+  instructions: Record<AbVariable, string>,
+  channels: CopyChannels,
+) {
+  return {
+    tier: p.tier as Tier,
+    companyName: p.company_name,
+    category: p.category,
+    estMonthlyRevenue: p.est_monthly_revenue !== null ? Number(p.est_monthly_revenue) : null,
+    researchNotes: p.research_notes,
+    contactFirstName: p.full_name ? String(p.full_name).split(" ")[0] : null,
+    contactTitle: p.title,
+    personalDetail: p.personal_detail,
+    launchTrack: p.launch_track,
+    auditUrl: audit?.url ?? null,
+    auditHeadline: audit?.headline ?? null,
+    auditFindings: audit?.findings ?? null,
+    facts: p.facts ?? {},
+    firstEmailInstructions: instructions,
+    channels,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Preview: draft the sequence for one brand without enrolling it, so an owner can read the emails
+// before approving its audit. Runs in netlify/functions/outbound-preview-background.ts because the
+// Claude call can outlast a normal request.
+
+export async function requestPreview(prospectId: string): Promise<void> {
+  const sql = getDb();
+  await sql`update outbound_prospects set preview_status = 'pending', preview_error = null where id = ${prospectId}`;
+  const secret = process.env.OUTBOUND_SYNC_SECRET;
+  const origin = process.env.URL;
+  if (!secret || !origin) {
+    await sql`update outbound_prospects set preview_status = 'error', preview_error = 'OUTBOUND_SYNC_SECRET or URL not set' where id = ${prospectId}`;
+    return;
+  }
+  await fetch(`${origin}/.netlify/functions/outbound-preview-background`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+    body: JSON.stringify({ prospectId }),
+  }).catch(() => undefined);
+}
+
+export async function writePreview(prospectId: string): Promise<void> {
+  const sql = getDb();
+  try {
+    const [p] = (await sql`
+      select p.*, c.full_name, c.title, c.personal_detail
+      from outbound_prospects p
+      left join lateral (
+        select * from outbound_contacts where prospect_id = p.id order by is_primary desc, created_at limit 1
+      ) c on true
+      where p.id = ${prospectId}
+    `) as any[];
+    if (!p) return;
+    // Latest approved audit, else the latest draft (the point is to preview before approving).
+    const [audit] = (await sql`
+      select share_token, headline, findings from outbound_audits
+      where prospect_id = ${prospectId} and status <> 'rejected'
+      order by (status = 'approved') desc, created_at desc limit 1
+    `) as any[];
+    const defaults = await getCurrentDefaults();
+    const touches = await writeSequence(
+      copyInputFor(
+        p,
+        audit ? { url: `${siteOrigin()}/audit/${audit.share_token}`, headline: audit.headline, findings: audit.findings } : null,
+        defaults,
+        { email: true, linkedin: false, instagram: false },
+      ),
+    );
+    await sql`
+      update outbound_prospects
+      set preview_messages = ${JSON.stringify(touches)}::jsonb, preview_status = 'ready', preview_error = null, preview_at = now()
+      where id = ${prospectId}
+    `;
+  } catch (err) {
+    await sql`update outbound_prospects set preview_status = 'error', preview_error = ${(err as Error).message.slice(0, 500)} where id = ${prospectId}`;
+  }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Enrollment (daily): write the sequence for the next brands and schedule it
 
@@ -103,12 +189,13 @@ export async function enrollNextProspects(limit: number): Promise<EnrollResult> 
   for (const p of candidates as any[]) {
     const channels = {
       email: !!p.email && p.email_verified,
-      linkedin: p.tier === "A" && !!p.linkedin_url,
-      instagram: p.tier === "A" && !!p.instagram_handle,
+      // Email only for now (Joey, 2026-10-15); LinkedIn/Instagram stay off until he turns them back on.
+      linkedin: false,
+      instagram: false,
     };
-    if (!channels.email && !channels.linkedin && !channels.instagram) {
-      await sql`update outbound_prospects set status_reason = 'No verified email or social profile to contact', updated_at = now() where id = ${p.id}`;
-      result.skipped.push({ prospectId: p.id, companyName: p.company_name, reason: "No verified email or social profile" });
+    if (!channels.email) {
+      await sql`update outbound_prospects set status_reason = 'No verified email to contact', updated_at = now() where id = ${p.id}`;
+      result.skipped.push({ prospectId: p.id, companyName: p.company_name, reason: "No verified email" });
       continue;
     }
 
@@ -130,23 +217,9 @@ export async function enrollNextProspects(limit: number): Promise<EnrollResult> 
 
     let touches;
     try {
-      touches = await writeSequence({
-        tier: p.tier as Tier,
-        companyName: p.company_name,
-        category: p.category,
-        estMonthlyRevenue: p.est_monthly_revenue !== null ? Number(p.est_monthly_revenue) : null,
-        researchNotes: p.research_notes,
-        contactFirstName: p.full_name ? String(p.full_name).split(" ")[0] : null,
-        contactTitle: p.title,
-        personalDetail: p.personal_detail,
-        launchTrack: p.launch_track,
-        auditUrl: audit ? `${siteOrigin()}/audit/${audit.share_token}` : null,
-        auditHeadline: audit?.headline ?? null,
-        auditFindings: audit?.findings ?? null,
-        facts: p.facts ?? {},
-        firstEmailInstructions: instructions,
-        channels,
-      });
+      touches = await writeSequence(
+        copyInputFor(p, audit ? { url: `${siteOrigin()}/audit/${audit.share_token}`, headline: audit.headline, findings: audit.findings } : null, instructions, channels),
+      );
     } catch (err) {
       result.skipped.push({ prospectId: p.id, companyName: p.company_name, reason: `Copy writing failed: ${(err as Error).message}` });
       continue;

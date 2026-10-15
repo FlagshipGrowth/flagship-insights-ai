@@ -21,8 +21,8 @@ export const AB_VARIABLE_LABELS: Record<AbVariable, string> = {
 const STARTING_DEFAULTS: Record<AbVariable, string> = {
   subject: "Subject: 3-6 lowercase words naming their brand and the single biggest audit finding.",
   opener: "Open with the single most specific finding from their audit, no greeting fluff.",
-  cta: "Close by offering the full audit link and asking if a 20-minute walkthrough is worth it.",
-  audit_hook: "Lead with the missing-keyword gap and its monthly search volume.",
+  cta: "Close by sharing the full audit link and offering, with no pressure, a free 20-minute walkthrough.",
+  audit_hook: "Lead with the single biggest, most specific Amazon listing finding from their audit headline, with its number.",
 };
 
 const STARTING_CHALLENGERS: Record<AbVariable, string> = {
@@ -80,7 +80,7 @@ async function writeChallenger(variable: AbVariable, current: string, history: s
   const result = await callStructured<{ instruction: string }>({
     system:
       "You design A/B tests for cold outbound email from Flagship Growth, an agency that runs Amazon, Walmart and TikTok Shop for CPG brands. Emails are founder-to-founder, short and specific.",
-    prompt: `Write one challenger instruction for the "${AB_VARIABLE_LABELS[variable]}" of the first cold email.\n\nCurrent default (the one to beat): ${current}\n\nAlready tested before:\n${history.map((h) => `- ${h}`).join("\n") || "- nothing yet"}\n\nThe instruction tells a copywriter what to do for every brand; it must not contain brand-specific text. Make it meaningfully different from the default and from past tests, and something that could plausibly earn more interested replies. One sentence.`,
+    prompt: `Write one challenger instruction for the "${AB_VARIABLE_LABELS[variable]}" of the first cold email.\n\nCurrent default (the one to beat): ${current}\n\nAlready tested before:\n${history.map((h) => `- ${h}`).join("\n") || "- nothing yet"}\n\nThe instruction tells a copywriter what to do for every brand; it must not contain brand-specific text. Make it meaningfully different from the default and from past tests, and something that could plausibly earn more interested replies while staying helpful and never salesy or pushy. One sentence.`,
     toolName: "propose_challenger",
     toolDescription: "Return the challenger instruction.",
     schema: {

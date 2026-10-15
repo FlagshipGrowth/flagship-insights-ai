@@ -50,6 +50,10 @@ export interface AuditFindings {
   imageStackFixes: AuditFix[];
   aPlusFixes: AuditFix[];
   adsGaps: AuditFix[];
+  // What customers praise and complain about in reviews (Helium10 review analysis).
+  reviewInsights: AuditFix[];
+  // Price and price per unit/serving against the benchmarked competitors.
+  pricingNotes: AuditFix[];
   launchOpportunity: LaunchOpportunity | null;
   mainImageNotes: string | null;
 }
@@ -114,6 +118,8 @@ export function parseFindings(input: unknown): AuditFindings | string {
     imageStackFixes: parseFixes(o.imageStackFixes),
     aPlusFixes: parseFixes(o.aPlusFixes),
     adsGaps: parseFixes(o.adsGaps),
+    reviewInsights: parseFixes(o.reviewInsights),
+    pricingNotes: parseFixes(o.pricingNotes),
     launchOpportunity,
     mainImageNotes: str(o.mainImageNotes, 800),
   };
@@ -240,6 +246,8 @@ export interface AuditView {
   originalImageUrl: string | null;
   hasMainImageConcept: boolean;
   helium10Calls: number | null;
+  // From the prospect's sourcing facts: true = sells there, false = checked and doesn't, null = unknown.
+  channels: { walmart: boolean | null; tiktokShop: boolean | null };
   reviewedBy: string | null;
   reviewedAt: string | null;
   reviewNote: string | null;
@@ -253,9 +261,13 @@ const EMPTY_FINDINGS: AuditFindings = {
   imageStackFixes: [],
   aPlusFixes: [],
   adsGaps: [],
+  reviewInsights: [],
+  pricingNotes: [],
   launchOpportunity: null,
   mainImageNotes: null,
 };
+
+const channelFact = (facts: any, key: string): boolean | null => (typeof facts?.[key] === "boolean" ? facts[key] : null);
 
 function toAuditView(r: any): AuditView {
   return {
@@ -270,6 +282,7 @@ function toAuditView(r: any): AuditView {
     originalImageUrl: r.original_image_url,
     hasMainImageConcept: !!r.main_image_blob_key,
     helium10Calls: r.helium10_calls,
+    channels: { walmart: channelFact(r.facts, "onWalmart"), tiktokShop: channelFact(r.facts, "onTikTokShop") },
     reviewedBy: r.reviewed_by,
     reviewedAt: r.reviewed_at ? new Date(r.reviewed_at).toISOString() : null,
     reviewNote: r.review_note,
@@ -281,7 +294,7 @@ export async function getAuditByToken(token: string): Promise<AuditView | null> 
   if (!/^[0-9a-f]{32}$/.test(token)) return null;
   const sql = getDb();
   const [r] = await sql`
-    select a.*, p.company_name from outbound_audits a join outbound_prospects p on p.id = a.prospect_id
+    select a.*, p.company_name, p.facts from outbound_audits a join outbound_prospects p on p.id = a.prospect_id
     where a.share_token = ${token}
   `;
   return r ? toAuditView(r) : null;
@@ -290,7 +303,7 @@ export async function getAuditByToken(token: string): Promise<AuditView | null> 
 export async function getAuditsForProspect(prospectId: string): Promise<AuditView[]> {
   const sql = getDb();
   const rows = await sql`
-    select a.*, p.company_name from outbound_audits a join outbound_prospects p on p.id = a.prospect_id
+    select a.*, p.company_name, p.facts from outbound_audits a join outbound_prospects p on p.id = a.prospect_id
     where a.prospect_id = ${prospectId}
     order by a.created_at desc
   `;
