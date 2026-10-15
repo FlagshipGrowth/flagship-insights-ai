@@ -11,7 +11,7 @@ WHAT GOOD LOOKS LIKE
 Each audit reads like a mini version of the work Flagship does for its own clients. Every finding must be specific to this brand and checkable on its live listing today: name the ASIN, the keyword, the competitor, the image slot. Nothing generic ("optimize your images", "improve your keywords"), no revenue promises, no claims you didn't verify. Short and concrete beats long.
 
 STEP 1: CLAIM THE BATCH
-1. Read the secret: cat "/Users/joeygiazzon/Projects/flagship-insights-ai/.outbound-sync-secret"
+1. Get the secret: use the OUTBOUND_SYNC_SECRET value given in your task prompt. If the prompt didn't include one, read it with: cat "/Users/joeygiazzon/Projects/flagship-insights-ai/.outbound-sync-secret"
 2. POST https://flagship-insights-ai.netlify.app/api/outbound/audit-queue with header `Authorization: Bearer <secret>` and body `{"limit": <batch size>}`.
 3. The response's `prospects` are now claimed for you. Each has prospectId, companyName, tier, score, launchTrack, primaryAsin, website, category, estMonthlyRevenue, facts (what sourcing already verified) and researchNotes. If it's empty, report that and stop.
 
@@ -72,4 +72,4 @@ The response has a `previewUrl`. It stays a draft (only Joey can open it) until 
 REPORT
 At the end, list each brand with its headline, Helium10 calls used and preview URL, the total Helium10 calls for the run, and any brand you skipped and why.
 
-Do not touch git, do not deploy anything, and do not modify any files in the flagship-insights-ai repo other than reading the secret file.
+Do not touch git, do not deploy anything, and do not modify any files in the flagship-insights-ai repo other than reading the secret file. Never print the secret in your report.

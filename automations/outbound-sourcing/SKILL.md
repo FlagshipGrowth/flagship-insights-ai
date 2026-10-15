@@ -29,7 +29,7 @@ STEP 4: RESEARCH NOTES
 2-4 sentences per brand: the brand story, product line, recent news, and the single most specific listing finding you saw. Specific to this brand only, nothing generic.
 
 STEP 5: DELIVER
-1. Read the secret: cat "/Users/joeygiazzon/Projects/flagship-insights-ai/.outbound-sync-secret"
+1. Get the secret: use the OUTBOUND_SYNC_SECRET value given in your task prompt. If the prompt didn't include one, read it with: cat "/Users/joeygiazzon/Projects/flagship-insights-ai/.outbound-sync-secret"
 2. POST up to 50 prospects per call to https://flagship-insights-ai.netlify.app/api/outbound/ingest with header `Authorization: Bearer <secret>` and JSON body:
 ```json
 {
@@ -61,4 +61,4 @@ STEP 5: DELIVER
 ```
 3. The response lists `inserted` (with score and tier), `skipped` (with reason) and `droppedContacts`. Report those counts and the tier mix in your own output, plus the Helium10 calls you used.
 
-Do not touch git, do not deploy anything, and do not modify any files in the flagship-insights-ai repo other than reading the secret file.
+Do not touch git, do not deploy anything, and do not modify any files in the flagship-insights-ai repo other than reading the secret file. Never print the secret in your report.
