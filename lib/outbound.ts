@@ -39,6 +39,31 @@ export const PROSPECT_STATUS_LABELS: Record<ProspectStatus, string> = {
 export const SUPPRESSION_KINDS = ["email", "domain", "company"] as const;
 export type SuppressionKind = (typeof SUPPRESSION_KINDS)[number];
 
+// Buckets on the do-not-contact list. Every bucket blocks outreach the same way; the category is
+// for knowing *why* (and for the skip reason the sourcing agent gets back).
+export const SUPPRESSION_CATEGORIES = [
+  "client",
+  "client_parent",
+  "warm_lead",
+  "referral_partner",
+  "past_client",
+  "crm_lead",
+  "opt_out",
+  "other",
+] as const;
+export type SuppressionCategory = (typeof SUPPRESSION_CATEGORIES)[number];
+
+export const SUPPRESSION_CATEGORY_LABELS: Record<SuppressionCategory, string> = {
+  client: "Client",
+  client_parent: "Client parent company",
+  warm_lead: "Warm lead",
+  referral_partner: "Referral partner",
+  past_client: "Past client",
+  crm_lead: "CRM lead",
+  opt_out: "Opted out",
+  other: "Other",
+};
+
 /** Same rule as outbound_prospects.normalized_name's generated column — keep the two in sync. */
 export function normalizeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
@@ -199,13 +224,14 @@ export function parseProspectInput(input: unknown): ProspectInput | string {
 // match exactly, or they'd block unrelated brands like "Powerful Foods".
 const PREFIX_MATCH_MIN_LENGTH = 6;
 
-function nameMatches(key: string, names: Set<string>): boolean {
-  if (names.has(key)) return true;
+/** Returns the matching name from `names`, or null. */
+function nameMatch(key: string, names: Iterable<string>): string | null {
   for (const n of names) {
+    if (n === key) return n;
     if (n.length < PREFIX_MATCH_MIN_LENGTH || key.length < PREFIX_MATCH_MIN_LENGTH) continue;
-    if (key.startsWith(n) || n.startsWith(key)) return true;
+    if (key.startsWith(n) || n.startsWith(key)) return n;
   }
-  return false;
+  return null;
 }
 
 export interface IngestResult {
@@ -224,7 +250,7 @@ export async function ingestProspects(inputs: ProspectInput[], source: string): 
     sql`select company_name, email from leads`,
     sql`select normalized_name from outbound_prospects`,
     sql`select lower(email) as email from outbound_contacts where email is not null`,
-    sql`select kind, value from outbound_suppressions`,
+    sql`select kind, value, category from outbound_suppressions`,
     getActiveWeights(),
   ]);
 
@@ -233,21 +259,28 @@ export async function ingestProspects(inputs: ProspectInput[], source: string): 
   const leadEmailSet = new Set(leadRows.filter((r: any) => r.email).map((r: any) => r.email.toLowerCase()));
   const prospectSet = new Set(prospectNames.map((r: any) => r.normalized_name));
   const contactEmailSet = new Set(contactEmails.map((r: any) => r.email));
-  const suppressed = { email: new Set<string>(), domain: new Set<string>(), company: new Set<string>() };
-  for (const s of suppressions as any[]) suppressed[s.kind as SuppressionKind].add(s.value);
+  // value -> category, per kind
+  const suppressed = {
+    email: new Map<string, SuppressionCategory>(),
+    domain: new Map<string, SuppressionCategory>(),
+    company: new Map<string, SuppressionCategory>(),
+  };
+  for (const s of suppressions as any[]) suppressed[s.kind as SuppressionKind].set(s.value, s.category);
+  const label = (c: SuppressionCategory | undefined) => `Do not contact: ${SUPPRESSION_CATEGORY_LABELS[c ?? "other"]}`;
 
   const result: IngestResult = { inserted: [], skipped: [], droppedContacts: [] };
 
   for (const p of inputs) {
     const key = normalizeName(p.companyName);
     const domain = p.website ? normalizeDomain(p.website) : null;
-    const skipReason = nameMatches(key, clientSet)
+    const companyHit = nameMatch(key, suppressed.company.keys());
+    const skipReason = nameMatch(key, clientSet)
       ? "Current client"
-      : nameMatches(key, suppressed.company)
-        ? "Suppressed (company)"
+      : companyHit
+        ? label(suppressed.company.get(companyHit))
         : domain && suppressed.domain.has(domain)
-          ? "Suppressed (domain)"
-          : nameMatches(key, leadNameSet)
+          ? label(suppressed.domain.get(domain))
+          : nameMatch(key, leadNameSet)
             ? "Already in the CRM pipeline"
             : prospectSet.has(key)
               ? "Already a prospect"
@@ -260,8 +293,10 @@ export async function ingestProspects(inputs: ProspectInput[], source: string): 
     const contacts = p.contacts.filter((c) => {
       if (!c.email) return true;
       const emailDomain = c.email.split("@")[1] ?? "";
-      const reason = suppressed.email.has(c.email) || suppressed.domain.has(emailDomain)
-        ? "Suppressed"
+      const reason = suppressed.email.has(c.email)
+        ? label(suppressed.email.get(c.email))
+        : suppressed.domain.has(emailDomain)
+          ? label(suppressed.domain.get(emailDomain))
         : contactEmailSet.has(c.email) || leadEmailSet.has(c.email)
           ? "Already contacted"
           : null;
@@ -493,17 +528,24 @@ export async function updateProspectStatus(id: string, status: string): Promise<
 }
 
 /** Adds a suppression entry and marks any existing prospect it matches as suppressed. */
-export async function addSuppression(kind: string, rawValue: string, reason: string | null, createdBy: string): Promise<void> {
+export async function addSuppression(
+  kind: string,
+  rawValue: string,
+  category: string,
+  reason: string | null,
+  createdBy: string
+): Promise<void> {
   if (!(SUPPRESSION_KINDS as readonly string[]).includes(kind)) return;
+  if (!(SUPPRESSION_CATEGORIES as readonly string[]).includes(category)) return;
   const value = normalizeSuppressionValue(kind as SuppressionKind, rawValue);
   if (!value) return;
   const sql = getDb();
   await sql`
-    insert into outbound_suppressions (kind, value, reason, created_by)
-    values (${kind}, ${value}, ${reason}, ${createdBy})
+    insert into outbound_suppressions (kind, value, category, reason, created_by)
+    values (${kind}, ${value}, ${category}, ${reason}, ${createdBy})
     on conflict (kind, value) do nothing
   `;
-  const statusReason = `Suppressed: ${reason ?? kind}`;
+  const statusReason = `Do not contact (${SUPPRESSION_CATEGORY_LABELS[category as SuppressionCategory]})${reason ? `: ${reason}` : ""}`;
   if (kind === "company") {
     await sql`update outbound_prospects set status = 'suppressed', status_reason = ${statusReason}, updated_at = now() where normalized_name = ${value}`;
   } else if (kind === "email") {
@@ -524,14 +566,15 @@ export async function suppressProspect(id: string, reason: string | null, create
   const sql = getDb();
   const [p] = await sql`select company_name from outbound_prospects where id = ${id}`;
   if (!p) return;
-  await addSuppression("company", p.company_name, reason ?? "Manually suppressed", createdBy);
+  await addSuppression("company", p.company_name, "other", reason ?? "Marked do-not-contact from the prospect page", createdBy);
 }
 
-export async function getRecentSuppressions(limit = 20) {
+export async function getSuppressions() {
   const sql = getDb();
-  const rows = await sql`select kind, value, reason, created_by, created_at from outbound_suppressions order by created_at desc limit ${limit}`;
+  const rows = await sql`select kind, value, category, reason, created_by, created_at from outbound_suppressions order by category, value`;
   return rows.map((r: any) => ({
     kind: r.kind as SuppressionKind,
+    category: r.category as SuppressionCategory,
     value: r.value as string,
     reason: r.reason as string | null,
     createdBy: r.created_by as string | null,

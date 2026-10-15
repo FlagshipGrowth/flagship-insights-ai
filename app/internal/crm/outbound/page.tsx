@@ -5,12 +5,14 @@ import {
   getProspects,
   getOutboundSummary,
   getWeightsHistory,
-  getRecentSuppressions,
+  getSuppressions,
   saveWeightsAndRescore,
   addSuppression,
   PROSPECT_STATUSES,
   PROSPECT_STATUS_LABELS,
   SUPPRESSION_KINDS,
+  SUPPRESSION_CATEGORIES,
+  SUPPRESSION_CATEGORY_LABELS,
   type ProspectStatus,
 } from "@/lib/outbound";
 import { SIGNAL_KEYS, SIGNAL_LABELS, type ScoringWeights, type Tier } from "@/lib/outbound-scoring";
@@ -36,8 +38,9 @@ async function addSuppressionAction(formData: FormData) {
   if (!ctx || !isOwner(ctx)) return;
   const kind = formData.get("kind") as string;
   const value = (formData.get("value") as string) ?? "";
+  const category = formData.get("category") as string;
   const reason = (formData.get("reason") as string)?.trim() || null;
-  await addSuppression(kind, value, reason, ctx.email);
+  await addSuppression(kind, value, category, reason, ctx.email);
   revalidatePath("/internal/crm/outbound");
 }
 
@@ -78,7 +81,7 @@ export default async function OutboundPage({
     getProspects({ tier, status }),
     getOutboundSummary(),
     getWeightsHistory(),
-    getRecentSuppressions(10),
+    getSuppressions(),
   ]);
   const active = weightsHistory[0];
 
@@ -234,28 +237,49 @@ export default async function OutboundPage({
               matches is suppressed right away. Current clients and CRM leads are always excluded automatically.
             </small>
           </p>
-          <form action={addSuppressionAction} style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-            <select name="kind" defaultValue="email">
+          <form action={addSuppressionAction} style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+            <select name="category" defaultValue="opt_out">
+              {SUPPRESSION_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {SUPPRESSION_CATEGORY_LABELS[c]}
+                </option>
+              ))}
+            </select>
+            <select name="kind" defaultValue="company">
               {SUPPRESSION_KINDS.map((k) => (
                 <option key={k} value={k}>
                   {k}
                 </option>
               ))}
             </select>
-            <input type="text" name="value" placeholder="email, domain or brand name" required style={{ flex: 1, minWidth: 160 }} />
-            <input type="text" name="reason" placeholder="Reason (optional)" style={{ flex: 1, minWidth: 120 }} />
+            <input type="text" name="value" placeholder="brand name, domain or email" required style={{ flex: 1, minWidth: 160 }} />
+            <input type="text" name="reason" placeholder="Note (optional)" style={{ flex: 1, minWidth: 120 }} />
             <button type="submit">Add</button>
           </form>
-          {suppressions.length > 0 && (
-            <ul style={{ paddingLeft: 18, fontSize: "0.8rem", margin: 0 }}>
-              {suppressions.map((s) => (
-                <li key={`${s.kind}:${s.value}`}>
-                  <strong>{s.kind}</strong> {s.value}
-                  {s.reason && <span style={{ color: "var(--muted)" }}> · {s.reason}</span>}
-                </li>
-              ))}
-            </ul>
-          )}
+          {SUPPRESSION_CATEGORIES.map((category) => {
+            const entries = suppressions.filter((s) => s.category === category);
+            if (entries.length === 0) return null;
+            return (
+              <details key={category} style={{ marginBottom: 6 }}>
+                <summary style={{ cursor: "pointer", fontSize: "0.85rem" }}>
+                  <strong>{SUPPRESSION_CATEGORY_LABELS[category]}</strong>{" "}
+                  <span style={{ color: "var(--muted)" }}>({entries.length})</span>
+                </summary>
+                <ul style={{ paddingLeft: 18, fontSize: "0.8rem", margin: "4px 0 8px" }}>
+                  {entries.map((s) => (
+                    <li key={`${s.kind}:${s.value}`}>
+                      {s.value}
+                      <span style={{ color: "var(--muted)" }}>
+                        {" "}
+                        · {s.kind}
+                        {s.reason && ` · ${s.reason}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            );
+          })}
         </section>
       </div>
     </main>

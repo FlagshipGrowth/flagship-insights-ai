@@ -79,6 +79,11 @@ create table outbound_suppressions (
     id          uuid primary key default gen_random_uuid(),
     kind        text not null check (kind in ('email', 'domain', 'company')),
     value       text not null,
+    -- Which bucket the entry belongs to on the do-not-contact list (lib/outbound.ts's
+    -- SUPPRESSION_CATEGORIES). All buckets block outreach the same way.
+    category    text not null default 'other' check (category in (
+                  'client', 'client_parent', 'past_client', 'warm_lead', 'referral_partner',
+                  'crm_lead', 'opt_out', 'other')),
     reason      text,
     created_by  text,
     created_at  timestamptz not null default now(),
