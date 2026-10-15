@@ -455,6 +455,8 @@ export interface ProspectDetail extends ProspectRow {
   source: string | null;
   leadId: string | null;
   auditRequested: boolean;
+  emailLookup: { at: string; result: string | null } | null;
+  handedOffAt: string | null;
   preview: {
     status: "pending" | "ready" | "error" | null;
     error: string | null;
@@ -506,6 +508,8 @@ export async function getProspectDetail(id: string): Promise<ProspectDetail | nu
     source: p.source,
     leadId: p.lead_id,
     auditRequested: p.audit_requested,
+    emailLookup: p.email_lookup_at ? { at: new Date(p.email_lookup_at).toISOString(), result: p.email_lookup_result } : null,
+    handedOffAt: p.handed_off_at ? new Date(p.handed_off_at).toISOString() : null,
     preview: {
       status: p.preview_status ?? null,
       error: p.preview_error ?? null,

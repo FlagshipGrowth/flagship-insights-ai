@@ -2,6 +2,8 @@ import { getDb } from "./db";
 import { getCurrentDefaults, ensureRunningTest, pickVariant, type AbVariable } from "./outbound-ab";
 import { writeSequence, NEEDS_JOEY } from "./outbound-copy";
 import { getSender } from "./outbound-sender";
+import { addLead, instantlyConfigured, listCampaignEmails } from "./instantly";
+import { recordReply, triggerClassification } from "./outbound-replies";
 import type { AuditFindings } from "./outbound-audit";
 import type { Tier } from "./outbound-scoring";
 
@@ -18,6 +20,7 @@ export interface OutboundSettings {
   dailyNewBrands: number;
   dailyEmailCap: number;
   monthlyToolSpend: number;
+  instantlyCampaignId: string | null;
   updatedBy: string | null;
   updatedAt: string;
 }
@@ -32,12 +35,13 @@ export async function getSettings(): Promise<OutboundSettings> {
     dailyNewBrands: s.daily_new_brands,
     dailyEmailCap: s.daily_email_cap,
     monthlyToolSpend: Number(s.monthly_tool_spend),
+    instantlyCampaignId: s.instantly_campaign_id ?? null,
     updatedBy: s.updated_by,
     updatedAt: new Date(s.updated_at).toISOString(),
   };
 }
 
-export async function updateSettings(input: Omit<OutboundSettings, "updatedBy" | "updatedAt">, by: string): Promise<void> {
+export async function updateSettings(input: Omit<OutboundSettings, "updatedBy" | "updatedAt" | "instantlyCampaignId">, by: string): Promise<void> {
   const clamp = (n: number, lo: number, hi: number) => Math.min(Math.max(Math.round(n) || 0, lo), hi);
   const sql = getDb();
   await sql`
@@ -381,6 +385,7 @@ export async function sendDueEmails(batchSize: number): Promise<SendRunResult> {
   const result: SendRunResult = { sent: 0, failed: [], cancelled: 0, stoppedBecause: null };
   const settings = await getSettings();
   if (!settings.sendingEnabled) return { ...result, stoppedBecause: "Sending is turned off" };
+  if (instantlyConfigured() && settings.instantlyCampaignId) return handOffToInstantly(batchSize, settings);
   const sender = getSender();
   if (!sender) return { ...result, stoppedBecause: "No sending tool connected" };
 
@@ -432,6 +437,214 @@ export async function sendDueEmails(batchSize: number): Promise<SendRunResult> {
     }
   }
   return result;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Instantly hand-off. Instantly sends through campaigns, so instead of sending each touch, a
+// brand's whole approved email sequence goes to the engine's Instantly campaign at once (as
+// per-lead variables) on its day-1 date. Instantly then sends the steps, stops on reply, and its
+// webhook (handleInstantlyEvent) marks each touch sent as it goes out.
+
+async function handOffToInstantly(batchSize: number, settings: OutboundSettings): Promise<SendRunResult> {
+  const result: SendRunResult = { sent: 0, failed: [], cancelled: 0, stoppedBecause: null };
+  const sql = getDb();
+  const [{ n: today }] = await sql`
+    select count(*)::int as n from outbound_prospects where handed_off_at >= date_trunc('day', now())
+  `;
+  const room = Math.min(batchSize, settings.dailyEmailCap - today);
+  if (room <= 0) return { ...result, stoppedBecause: "Daily cap of new brands handed to Instantly reached" };
+
+  // Ready brands: day 1 is due, nothing in the sequence still waits for review.
+  const ready = (await sql`
+    select p.id, p.company_name, c.email, c.full_name, c.email_verified
+    from outbound_prospects p
+    join lateral (
+      select t.contact_id from outbound_touches t
+      where t.prospect_id = p.id and t.channel = 'email' and t.step_day = (
+        select min(step_day) from outbound_touches where prospect_id = p.id and channel = 'email')
+      limit 1
+    ) first on true
+    left join outbound_contacts c on c.id = first.contact_id
+    where p.status = 'in_sequence' and p.handed_off_at is null
+      and exists (select 1 from outbound_touches t where t.prospect_id = p.id and t.channel = 'email'
+                    and t.status = 'queued' and t.scheduled_for <= current_date)
+      and not exists (select 1 from outbound_touches t where t.prospect_id = p.id and t.channel = 'email'
+                        and t.status = 'needs_review')
+    order by case p.tier when 'A' then 0 when 'B' then 1 else 2 end, p.updated_at
+    limit ${room}
+  `) as any[];
+
+  for (const p of ready) {
+    const touches = (await sql`
+      select id, subject, body from outbound_touches
+      where prospect_id = ${p.id} and channel = 'email' and status = 'queued' order by step_day
+    `) as any[];
+    if (!p.email || !p.email_verified || (await isSuppressed(sql, p.id, p.email))) {
+      await sql`update outbound_touches set status = 'cancelled' where prospect_id = ${p.id} and status in ('queued', 'needs_review')`;
+      await sql`update outbound_prospects set status = 'closed', status_reason = 'No verified email or on the do-not-contact list at send time', updated_at = now() where id = ${p.id}`;
+      result.cancelled += touches.length;
+      continue;
+    }
+    if (touches.length !== SEQUENCE_STEPS_EMAIL_COUNT || !touches[0].subject) {
+      result.failed.push({ touchId: touches[0]?.id ?? p.id, error: `${p.company_name}: expected ${SEQUENCE_STEPS_EMAIL_COUNT} approved emails with a subject on the first, found ${touches.length}` });
+      continue;
+    }
+    const [first, ...rest] = String(p.full_name ?? "").trim().split(/\s+/);
+    try {
+      const leadId = await addLead({
+        campaignId: settings.instantlyCampaignId!,
+        email: p.email,
+        firstName: first || null,
+        lastName: rest.join(" ") || null,
+        companyName: p.company_name,
+        subject1: touches[0].subject,
+        bodies: touches.map((t) => t.body),
+      });
+      await sql`update outbound_prospects set sender_lead_id = ${leadId}, handed_off_at = now(), updated_at = now() where id = ${p.id}`;
+      await sql`update outbound_touches set sent_by = 'instantly' where prospect_id = ${p.id} and channel = 'email' and status = 'queued'`;
+      result.sent++;
+    } catch (err) {
+      result.failed.push({ touchId: touches[0].id, error: `${p.company_name}: ${(err as Error).message}` });
+    }
+  }
+  return result;
+}
+
+const SEQUENCE_STEPS_EMAIL_COUNT = 5;
+
+export interface InstantlyEvent {
+  event_type?: string;
+  lead_email?: string;
+  campaign_id?: string;
+  step?: number;
+  email_account?: string;
+  email_id?: string;
+  reply_text?: string;
+  reply_text_snippet?: string;
+  reply_subject?: string;
+  timestamp?: string;
+}
+
+async function engineContact(sql: ReturnType<typeof getDb>, email: string): Promise<{ id: string; prospect_id: string } | null> {
+  const [c] = (await sql`
+    select c.id, c.prospect_id from outbound_contacts c join outbound_prospects p on p.id = c.prospect_id
+    where lower(c.email) = ${email} and p.handed_off_at is not null limit 1
+  `) as any[];
+  return c ?? null;
+}
+
+/** Instantly sent one more email to this brand: the earliest still-queued touch is the one it
+ * sent. Keyed on Instantly's email id, so the webhook and the 15-minute pull never double-count. */
+async function markNextTouchSent(
+  sql: ReturnType<typeof getDb>,
+  prospectId: string,
+  emailId: string | null,
+  inbox: string | null,
+  at: string | null,
+): Promise<boolean> {
+  if (emailId) {
+    const [seen] = await sql`select 1 from outbound_touches where prospect_id = ${prospectId} and external_id = ${emailId}`;
+    if (seen) return false;
+  }
+  const rows = await sql`
+    update outbound_touches set status = 'sent', sent_at = coalesce(${at}::timestamptz, now()),
+      sending_inbox = ${inbox}, external_id = ${emailId}, sent_by = 'instantly'
+    where id = (
+      select id from outbound_touches where prospect_id = ${prospectId} and channel = 'email' and status = 'queued'
+      order by step_day limit 1
+    )
+    returning id
+  `;
+  return rows.length > 0;
+}
+
+async function recordReplyFromInstantly(input: {
+  fromAddress: string;
+  body: string;
+  externalId: string | null;
+  receivedAt: string | null;
+  prospectId: string;
+}): Promise<string> {
+  const r = await recordReply({ channel: "email", ...input });
+  if ("error" in r) return r.error;
+  if (!r.duplicate) await triggerClassification(r.replyId);
+  return r.duplicate ? "duplicate" : "recorded";
+}
+
+/** What Instantly reports back for the engine's campaign. Returns a short note for the log. */
+export async function handleInstantlyEvent(e: InstantlyEvent): Promise<string> {
+  const sql = getDb();
+  const email = e.lead_email?.trim().toLowerCase();
+  if (!email) return "ignored: no lead_email";
+  const c = await engineContact(sql, email);
+  if (!c) return `ignored: ${email} isn't an engine lead`;
+
+  switch (e.event_type) {
+    case "email_sent":
+      return (await markNextTouchSent(sql, c.prospect_id, e.email_id ?? null, e.email_account ?? null, e.timestamp ?? null))
+        ? "email_sent"
+        : "email_sent: already recorded";
+    case "reply_received":
+      return `reply ${await recordReplyFromInstantly({
+        fromAddress: email,
+        body: e.reply_text || e.reply_text_snippet || "(empty reply)",
+        externalId: e.email_id ?? null,
+        receivedAt: e.timestamp ?? null,
+        prospectId: c.prospect_id,
+      })}`;
+    case "lead_unsubscribed":
+      await sql`
+        insert into outbound_suppressions (kind, value, category, reason, created_by)
+        values ('email', ${email}, 'opt_out', 'Unsubscribed in Instantly', 'instantly')
+        on conflict (kind, value) do nothing
+      `;
+      await sql`update outbound_touches set status = 'cancelled' where prospect_id = ${c.prospect_id} and status in ('queued', 'needs_review')`;
+      await sql`update outbound_prospects set status = 'closed', status_reason = 'Unsubscribed', updated_at = now() where id = ${c.prospect_id}`;
+      return "unsubscribed";
+    case "email_bounced":
+      await sql`update outbound_contacts set email_verified = false where id = ${c.id}`;
+      await sql`update outbound_touches set status = 'cancelled' where prospect_id = ${c.prospect_id} and status in ('queued', 'needs_review')`;
+      await sql`update outbound_prospects set status = 'closed', status_reason = 'Email bounced', updated_at = now() where id = ${c.prospect_id}`;
+      return "bounced";
+    default:
+      return `ignored: ${e.event_type ?? "unknown event"}`;
+  }
+}
+
+/** Every 15 minutes: pulls the campaign's sent and received emails since the last pull, so sends
+ * and replies are recorded even if a webhook never arrives. */
+export async function syncFromInstantly(): Promise<{ sent: number; replies: number; note: string | null }> {
+  const settings = await getSettings();
+  if (!instantlyConfigured() || !settings.instantlyCampaignId) return { sent: 0, replies: 0, note: "Instantly isn't connected" };
+  const sql = getDb();
+  const [{ instantly_synced_at: last }] = (await sql`select instantly_synced_at from outbound_settings`) as any[];
+  // Overlap by an hour: everything is keyed on Instantly's email id, so re-reading is harmless.
+  const since = new Date((last ? new Date(last).getTime() : Date.now() - 7 * 86400000) - 3600000).toISOString();
+  const startedAt = new Date().toISOString();
+  const emails = await listCampaignEmails(settings.instantlyCampaignId, since);
+
+  let sent = 0;
+  let replies = 0;
+  // Oldest first, so touches are marked in the order Instantly sent them.
+  for (const m of emails.sort((a, b) => a.at.localeCompare(b.at))) {
+    if (!m.lead) continue;
+    const c = await engineContact(sql, m.lead.toLowerCase());
+    if (!c) continue;
+    if (m.received) {
+      const r = await recordReplyFromInstantly({
+        fromAddress: m.lead.toLowerCase(),
+        body: m.text || "(empty reply)",
+        externalId: m.id,
+        receivedAt: m.at,
+        prospectId: c.prospect_id,
+      });
+      if (r === "recorded") replies++;
+    } else if (await markNextTouchSent(sql, c.prospect_id, m.id, m.inbox, m.at)) {
+      sent++;
+    }
+  }
+  await sql`update outbound_settings set instantly_synced_at = ${startedAt}`;
+  return { sent, replies, note: null };
 }
 
 // ---------------------------------------------------------------------------------------------

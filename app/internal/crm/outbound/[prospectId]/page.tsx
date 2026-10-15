@@ -16,6 +16,7 @@ import { sequenceForTier, TIER_TREATMENT } from "@/lib/outbound-sequence";
 import { getAuditsForProspect, reviewAudit, HELIUM10_COST_PER_CALL } from "@/lib/outbound-audit";
 import { getProspectTouches, requestPreview } from "@/lib/outbound-sequencer";
 import { getProspectReplies, recordReply, triggerClassification, REPLY_CLASS_LABELS } from "@/lib/outbound-replies";
+import { apolloConfigured, findEmailForProspect } from "@/lib/outbound-email-finder";
 import { OutboundTierBadge } from "@/components/OutboundTierBadge";
 import { ConfirmButton } from "@/components/ConfirmButton";
 
@@ -40,6 +41,14 @@ async function previewAction(prospectId: string) {
   const ctx = await getUserContext();
   if (!ctx || !isOwner(ctx)) return;
   await requestPreview(prospectId);
+  revalidatePath(`/internal/crm/outbound/${prospectId}`);
+}
+
+async function findEmailAction(prospectId: string) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isOwner(ctx)) return;
+  await findEmailForProspect(prospectId);
   revalidatePath(`/internal/crm/outbound/${prospectId}`);
 }
 
@@ -256,6 +265,25 @@ export default async function ProspectPage({ params }: { params: Promise<{ prosp
 
       <section className="card" style={{ marginBottom: 16 }}>
         <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>Decision-makers</h2>
+        {apolloConfigured() && !p.contacts.some((c) => c.email && c.emailVerified) && (
+          <form action={findEmailAction.bind(null, p.id)} style={{ marginBottom: 10 }}>
+            <button type="submit" style={{ background: "var(--paper-2)", color: "var(--ink)" }}>
+              Find email with Apollo
+            </button>
+          </form>
+        )}
+        {p.emailLookup && (
+          <p style={{ marginTop: 0 }}>
+            <small style={{ color: "var(--muted)" }}>
+              Apollo, {new Date(p.emailLookup.at).toLocaleDateString()}: {p.emailLookup.result ?? "no result"}
+            </small>
+          </p>
+        )}
+        {p.handedOffAt && (
+          <p style={{ marginTop: 0 }}>
+            <small style={{ color: "var(--muted)" }}>Handed to Instantly {new Date(p.handedOffAt).toLocaleDateString()}.</small>
+          </p>
+        )}
         {p.contacts.length === 0 ? (
           <small style={{ color: "var(--muted)" }}>None found yet.</small>
         ) : (
