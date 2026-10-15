@@ -34,8 +34,15 @@ STEP 3: MAIN IMAGE NOTES
 2. Don't generate or edit any product image. Write `findings.mainImageNotes`: 1-2 sentences on exactly what to change about today's main image (framing, props, overlaid text, resolution, wrong variant), measured against Amazon's main-image rules and the competitors you benchmarked.
 
 STEP 4: WRITE THE AUDIT
-- `headline`: the single biggest finding, in one plain sentence with a number in it where you have one. Example shape: "You're missing 6 search terms worth ~48,000 searches a month that your top 2 competitors rank for."
-- `findings.summary`: 2-3 sentences: what's working, the biggest gap, and the quickest win.
+Write for a busy founder who is NOT an Amazon expert. Plain English, no jargon. Never write "BSR", "ASIN", "LQS", "PPC", "SP/SD", "PT01" or slot codes in the headline, summary or opportunities. Say "sales rank (how fast it sells vs others in its category; lower is better)", "search position", "your product page", "the 3rd photo". Turn every number into what it means for the business: "sales rank went from #1,336 to #3,302" becomes "it's selling at less than half its July pace". Each finding should answer: what we saw, why it costs them sales, and what to do.
+
+- `findings.opportunities`: exactly 3, the biggest first. Each {title, whatWeSaw, whyItMatters, theFix}:
+  - `title`: 3-8 words a founder gets instantly ("Shoppers searching 'sugar free cookies' don't see you").
+  - `whatWeSaw`: one or two sentences, the plain fact with one concrete number.
+  - `whyItMatters`: the business impact in sales or shoppers terms, grounded in the data (search volume, competitor results, rating), never a made-up dollar promise.
+  - `theFix`: what to do, concretely, in one or two sentences.
+- `headline`: the single biggest opportunity, in one plain sentence a non-expert understands, with one number in it where you have one. No jargon. Example shape: "You're missing 6 search terms worth ~48,000 searches a month that your top 2 competitors rank for."
+- `findings.summary`: 2-3 plain sentences: what's working, the biggest gap, and the quickest win. No jargon.
 - `findings.keywordGaps`: up to 10 rows, highest volume first: keyword, monthlySearchVolume, competitorsRanking ("Brand X #3, Brand Y #7"), brandRank (number, or null if not ranking).
 - `findings.competitorBenchmark`: the brand first with isBrand: true, then the 2-3 competitors: name, asin, price, rating, reviewCount, bsr, imageNote (one short phrase on their main image or gallery).
 - `findings.imageStackFixes`: the 3-5 highest-impact gallery fixes, each {title, detail}. Name the slot ("Image 3 is a second lifestyle shot; nothing shows the size or what's in the box").
@@ -57,6 +64,7 @@ Write the audit to a JSON file and run `python3 automations/outbound-post.py aud
   "originalImageUrl": "https://m.media-amazon.com/images/I/....jpg",
   "findings": {
     "summary": "...",
+    "opportunities": [{"title": "...", "whatWeSaw": "...", "whyItMatters": "...", "theFix": "..."}],
     "keywordGaps": [{"keyword": "...", "monthlySearchVolume": 12000, "competitorsRanking": "...", "brandRank": null}],
     "competitorBenchmark": [{"name": "...", "asin": "...", "price": 24.99, "rating": 4.4, "reviewCount": 1830, "bsr": 4120, "imageNote": "...", "isBrand": true}],
     "imageStackFixes": [{"title": "...", "detail": "..."}],
