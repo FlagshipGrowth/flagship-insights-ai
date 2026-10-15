@@ -126,6 +126,14 @@ export default async function AuditPage({ params }: { params: Promise<{ token: s
         {audit.kind === "launch" ? "Marketplace launch audit" : "Amazon listing audit"} · {audit.companyName} · {date}
       </p>
       <h1 style={{ fontSize: "2rem", lineHeight: 1.15, margin: "8px 0 14px" }}>{audit.headline}</h1>
+      {audit.auditedProduct && (
+        <p style={{ margin: "0 0 14px", fontSize: "0.88rem", color: "var(--muted)" }}>
+          Product reviewed: {audit.auditedProduct.name ? `${audit.auditedProduct.name} · ` : ""}ASIN{" "}
+          <a href={`https://www.amazon.com/dp/${audit.auditedProduct.asin}`} target="_blank" rel="noreferrer">
+            {audit.auditedProduct.asin}
+          </a>
+        </p>
+      )}
       <p style={{ fontSize: "1.05rem", lineHeight: 1.6, marginTop: 0, marginBottom: 28 }}>{f.summary}</p>
 
       <Opportunities items={f.opportunities} />
