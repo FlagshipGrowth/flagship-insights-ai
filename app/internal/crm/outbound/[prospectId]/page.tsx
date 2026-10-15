@@ -6,6 +6,7 @@ import {
   getProspectDetail,
   updateProspectStatus,
   suppressProspect,
+  requestAudit,
   pushProspectToPipeline,
   PROSPECT_STATUSES,
   PROSPECT_STATUS_LABELS,
@@ -23,6 +24,14 @@ async function updateStatusAction(prospectId: string, formData: FormData) {
   const ctx = await getUserContext();
   if (!ctx || !isOwner(ctx)) return;
   await updateProspectStatus(prospectId, formData.get("status") as string);
+  revalidatePath(`/internal/crm/outbound/${prospectId}`);
+}
+
+async function requestAuditAction(prospectId: string) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isOwner(ctx)) return;
+  await requestAudit(prospectId);
   revalidatePath(`/internal/crm/outbound/${prospectId}`);
 }
 
@@ -166,6 +175,22 @@ export default async function ProspectPage({ params }: { params: Promise<{ prosp
               <small style={{ color: "var(--muted)" }}>{p.statusReason}</small>
             </p>
           )}
+          {(p.status === "scored" || p.status === "disqualified") &&
+            (p.auditRequested ? (
+              <p style={{ margin: "8px 0" }}>
+                <small>🔎 Queued for audit. The audit agent picks it up on its next run.</small>
+              </p>
+            ) : (
+              p.tier !== "A" &&
+              p.tier !== "B" && (
+                <form action={requestAuditAction.bind(null, p.id)} style={{ margin: "8px 0" }}>
+                  <button type="submit" style={{ background: "var(--paper-2)", color: "var(--ink)" }}>
+                    Queue for audit anyway
+                  </button>{" "}
+                  <small style={{ color: "var(--muted)" }}>Tier A/B brands are audited automatically.</small>
+                </form>
+              )
+            ))}
           {p.leadId ? (
             <p style={{ margin: "8px 0" }}>
               ✅ In the CRM pipeline. <a href="/internal/crm?tab=pipeline">Open pipeline →</a>

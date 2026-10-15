@@ -181,6 +181,7 @@ export interface ProspectInput {
   facts: ProspectFacts;
   researchNotes: string | null;
   contacts: ContactInput[];
+  requestAudit: boolean;
 }
 
 /** Validates one untrusted prospect object from the ingest API. Returns an error string if it
@@ -216,6 +217,7 @@ export function parseProspectInput(input: unknown): ProspectInput | string {
     facts: parseFacts(o.facts),
     researchNotes: str(o.researchNotes),
     contacts,
+    requestAudit: o.requestAudit === true,
   };
 }
 
@@ -324,11 +326,13 @@ export async function ingestProspects(inputs: ProspectInput[], source: string): 
       with p as (
         insert into outbound_prospects (
           company_name, website, amazon_store_url, primary_asin, category, est_monthly_revenue, facts,
-          score, score_breakdown, tier, launch_track, weights_id, status, status_reason, research_notes, source
+          score, score_breakdown, tier, launch_track, weights_id, status, status_reason, research_notes, source,
+          audit_requested
         ) values (
           ${p.companyName}, ${p.website}, ${p.amazonStoreUrl}, ${p.primaryAsin}, ${p.category}, ${p.estMonthlyRevenue},
           ${JSON.stringify(p.facts)}::jsonb, ${scored.score}, ${JSON.stringify(scored.signals)}::jsonb, ${scored.tier},
-          ${scored.launchTrack}, ${weights.id}, ${status}, ${scored.ineligibleReason}, ${p.researchNotes}, ${source}
+          ${scored.launchTrack}, ${weights.id}, ${status}, ${scored.ineligibleReason}, ${p.researchNotes}, ${source},
+          ${p.requestAudit}
         )
         on conflict do nothing
         returning id
@@ -450,6 +454,7 @@ export interface ProspectDetail extends ProspectRow {
   researchNotes: string | null;
   source: string | null;
   leadId: string | null;
+  auditRequested: boolean;
   contacts: {
     id: string;
     fullName: string | null;
@@ -494,6 +499,7 @@ export async function getProspectDetail(id: string): Promise<ProspectDetail | nu
     researchNotes: p.research_notes,
     source: p.source,
     leadId: p.lead_id,
+    auditRequested: p.audit_requested,
     contacts: contacts.map((c: any) => ({
       id: c.id,
       fullName: c.full_name,
@@ -510,6 +516,16 @@ export async function getProspectDetail(id: string): Promise<ProspectDetail | nu
 
 // ---------------------------------------------------------------------------------------------
 // Writes from the CRM UI
+
+/** Sends a brand to the audit queue regardless of tier. */
+export async function requestAudit(id: string): Promise<void> {
+  const sql = getDb();
+  await sql`
+    update outbound_prospects set audit_requested = true, updated_at = now()
+    where id = ${id} and status in ('scored', 'disqualified')
+  `;
+  await sql`update outbound_prospects set status = 'scored' where id = ${id} and status = 'disqualified'`;
+}
 
 export async function updateProspectStatus(id: string, status: string): Promise<void> {
   if (!(PROSPECT_STATUSES as readonly string[]).includes(status)) return;

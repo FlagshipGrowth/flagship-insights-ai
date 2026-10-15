@@ -76,8 +76,8 @@ export interface EnrollResult {
   skipped: { prospectId: string; companyName: string; reason: string }[];
 }
 
-/** Picks up to `limit` brands: Tier A then B with an approved audit ("ready"), then Tier C
- * ("scored", light-touch, no audit). */
+/** Picks up to `limit` brands: any brand with an approved audit ("ready", Tier A first), then
+ * unaudited Tier C ("scored", light-touch). */
 export async function enrollNextProspects(limit: number): Promise<EnrollResult> {
   const sql = getDb();
   const result: EnrollResult = { enrolled: [], skipped: [] };
@@ -91,7 +91,7 @@ export async function enrollNextProspects(limit: number): Promise<EnrollResult> 
       select * from outbound_contacts where prospect_id = p.id order by is_primary desc, created_at limit 1
     ) c on true
     -- Tier C has no audit, so it needs at least some verified listing facts to say anything real.
-    where (p.status = 'ready' and p.tier in ('A', 'B')) or (p.status = 'scored' and p.tier = 'C' and p.facts <> '{}'::jsonb)
+    where p.status = 'ready' or (p.status = 'scored' and p.tier = 'C' and not p.audit_requested and p.facts <> '{}'::jsonb)
     order by case p.tier when 'A' then 0 when 'B' then 1 else 2 end, p.score desc, p.created_at
     limit ${limit}
   `;
@@ -113,7 +113,7 @@ export async function enrollNextProspects(limit: number): Promise<EnrollResult> 
     }
 
     let audit: { share_token: string; headline: string; findings: AuditFindings } | undefined;
-    if (p.tier !== "C") {
+    if (p.status === "ready") {
       [audit] = (await sql`
         select share_token, headline, findings from outbound_audits
         where prospect_id = ${p.id} and status = 'approved' order by reviewed_at desc limit 1

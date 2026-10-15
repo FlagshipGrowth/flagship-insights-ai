@@ -48,6 +48,7 @@ STEP 5: DELIVER
         "bsrChange90dPct": 35, "bsrDropExplained": false, "launchWithin90d": true
       },
       "researchNotes": "...",
+      "requestAudit": false,
       "contacts": [
         {
           "fullName": "Jane Doe", "title": "Founder & CEO", "email": "jane@brand.com", "emailVerified": false,

@@ -146,10 +146,10 @@ export async function claimAuditQueue(limit: number): Promise<AuditQueueItem[]> 
     update outbound_prospects set status = 'audit_pending', updated_at = now()
     where id in (
       select id from outbound_prospects
-      where tier in ('A', 'B')
+      where (tier in ('A', 'B') or audit_requested)
         -- A claim older than a day means that agent run died mid-way: hand it out again.
         and (status = 'scored' or (status = 'audit_pending' and updated_at < now() - interval '1 day'))
-      order by score desc, created_at
+      order by audit_requested desc, score desc, created_at
       limit ${limit}
       for update skip locked
     )
@@ -357,7 +357,7 @@ export async function getPilotStats(): Promise<PilotStats> {
              coalesce(sum(helium10_calls) filter (where created_at >= date_trunc('month', now())), 0)::int as month_calls
       from outbound_audits
     `,
-    sql`select count(*)::int as n from outbound_prospects where status = 'scored' and tier in ('A', 'B')`,
+    sql`select count(*)::int as n from outbound_prospects where status = 'scored' and (tier in ('A', 'B') or audit_requested)`,
   ]);
   const avg = a.avg_calls === null ? null : Number(a.avg_calls);
   return {

@@ -41,6 +41,8 @@ create table outbound_prospects (
     score_breakdown      jsonb,
     tier                 text check (tier in ('A', 'B', 'C')),
     launch_track         boolean not null default false,
+    -- An owner can send any brand to the audit queue, whatever its tier (pilot, or a hunch).
+    audit_requested      boolean not null default false,
     weights_id           integer references outbound_scoring_weights(id),
     status               text not null default 'scored' check (status in (
                            'scored', 'audit_pending', 'audited', 'ready', 'in_sequence',
