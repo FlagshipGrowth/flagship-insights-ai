@@ -34,5 +34,17 @@ export async function POST(req: Request) {
 
   const source = typeof body?.source === "string" && body.source.trim() ? body.source.trim() : "outbound-sourcing agent";
   const result = await ingestProspects(parsed, source);
+
+  // Step 1 of the engine for every new brand: find a verified email with Apollo, in a background
+  // function (a few Apollo calls per brand). Only brands with one are handed to the audit agent.
+  const toLookUp = result.inserted.filter((p) => p.status === "scored").map((p) => p.id);
+  const origin = process.env.URL;
+  if (toLookUp.length > 0 && origin) {
+    await fetch(`${origin}/.netlify/functions/outbound-find-emails-background`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+      body: JSON.stringify({ prospectIds: toLookUp }),
+    }).catch(() => undefined);
+  }
   return Response.json({ ok: true, ...result, invalid });
 }

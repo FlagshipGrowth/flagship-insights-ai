@@ -37,6 +37,7 @@ export async function POST(req: Request) {
   });
   if (typeof result === "string") return Response.json({ ok: false, error: result }, { status: 400 });
 
+
   const origin = new URL(req.url).origin;
   return Response.json({ ok: true, auditId: result.auditId, previewUrl: `${origin}/audit/${result.shareToken}` });
 }

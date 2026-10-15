@@ -20,6 +20,9 @@ import { TIER_TREATMENT } from "@/lib/outbound-sequence";
 import { getPilotStats, HELIUM10_COST_PER_CALL } from "@/lib/outbound-audit";
 import { getSettings, updateSettings } from "@/lib/outbound-sequencer";
 import { senderStatus } from "@/lib/outbound-sender";
+import { isProtectedInbox } from "@/lib/instantly";
+import { connectInstantly, getInstantlyOverview, sendTestToMe, syncCampaignState } from "@/lib/outbound-instantly-admin";
+import { apolloConfigured } from "@/lib/outbound-email-finder";
 import { OutboundTierBadge } from "@/components/OutboundTierBadge";
 
 const TIERS: Tier[] = ["A", "B", "C"];
@@ -50,7 +53,41 @@ async function saveSettingsAction(formData: FormData) {
     },
     ctx.email
   );
+  let error: string | null = null;
+  await syncCampaignState(formData.get("sendingEnabled") === "on").catch((err) => {
+    error = `Settings saved, but Instantly didn't switch: ${(err as Error).message}`;
+  });
   revalidatePath("/internal/crm/outbound");
+  if (error) redirect(`/internal/crm/outbound?runError=${encodeURIComponent(error)}`);
+}
+
+async function connectInstantlyAction(formData: FormData) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isOwner(ctx)) return;
+  const chosen = formData.getAll("inbox").map(String);
+  let msg: string;
+  try {
+    const r = await connectInstantly(chosen);
+    msg = r.error ? `runError=${encodeURIComponent(r.error)}` : `instantlyNote=${encodeURIComponent(r.note ?? "Connected.")}`;
+  } catch (err) {
+    msg = `runError=${encodeURIComponent((err as Error).message)}`;
+  }
+  revalidatePath("/internal/crm/outbound");
+  redirect(`/internal/crm/outbound?${msg}`);
+}
+
+async function sendTestAction() {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isOwner(ctx)) return;
+  let msg: string;
+  try {
+    msg = `instantlyNote=${encodeURIComponent(await sendTestToMe(ctx.email))}`;
+  } catch (err) {
+    msg = `runError=${encodeURIComponent((err as Error).message)}`;
+  }
+  redirect(`/internal/crm/outbound?${msg}`);
 }
 
 async function runDailyNowAction() {
@@ -102,7 +139,7 @@ function Stat({ label, value, href }: { label: string; value: number | string; h
 export default async function OutboundPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tier?: string; status?: string; weightsError?: string; weightsSaved?: string; runStarted?: string; runError?: string }>;
+  searchParams: Promise<{ tier?: string; status?: string; weightsError?: string; weightsSaved?: string; runStarted?: string; runError?: string; instantlyNote?: string }>;
 }) {
   const ctx = await getUserContext();
   if (!ctx) redirect("/onboarding");
@@ -119,7 +156,12 @@ export default async function OutboundPage({
     getSuppressions(),
   ]);
   const [pilot, settings] = await Promise.all([getPilotStats(), getSettings()]);
-  const sender = senderStatus();
+  const instantly = await getInstantlyOverview();
+  const sender = instantly.campaign
+    ? { configured: true, message: `Sending through Instantly (campaign "${instantly.campaign.name}").` }
+    : instantly.configured
+      ? { configured: false, message: "Instantly's key is set but it isn't connected yet: use Connect Instantly below." }
+      : senderStatus();
   const active = weightsHistory[0];
 
   return (
@@ -147,6 +189,7 @@ export default async function OutboundPage({
       </p>
       {params.runStarted && <p>✅ Daily step started. New sequences show up in the queue within a few minutes.</p>}
       {params.runError && <p style={{ color: "#DC2626" }}>⚠️ {params.runError}</p>}
+      {params.instantlyNote && <p>✅ {params.instantlyNote}</p>}
 
       <section className="card" style={{ marginBottom: 20 }}>
         <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>Engine settings</h2>
@@ -190,6 +233,74 @@ export default async function OutboundPage({
             Ramp new brands/day up over 3-4 weeks as inboxes warm (the plan&apos;s 50-100+ is the target, not the start). Tool
             spend feeds cost per booked call.
           </small>
+        </p>
+      </section>
+
+      <section className="card" style={{ marginBottom: 20 }}>
+        <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>Sending (Instantly) and finding emails (Apollo)</h2>
+        {!instantly.configured ? (
+          <p style={{ marginTop: 0 }}>
+            <small style={{ color: "#DC2626" }}>INSTANTLY_API_KEY isn&apos;t set in Netlify.</small>
+          </p>
+        ) : instantly.error ? (
+          <p style={{ marginTop: 0, color: "#DC2626" }}>
+            <small>Instantly said: {instantly.error}</small>
+          </p>
+        ) : instantly.campaign ? (
+          <div style={{ fontSize: "0.88rem" }}>
+            <p style={{ marginTop: 0 }}>
+              Connected. Campaign <strong>{instantly.campaign.name}</strong> is{" "}
+              <strong>{instantly.campaign.status === 1 ? "running" : "paused"}</strong>
+              {instantly.campaign.status === 1 ? "" : " (it starts when you tick Sending on and save)"}. Replies come back{" "}
+              {instantly.webhookConnected ? "instantly by webhook, and" : ""} every 15 minutes.
+            </p>
+            <form action={sendTestAction} style={{ display: "inline" }}>
+              <button type="submit" style={{ background: "var(--paper-2)", color: "var(--ink)" }}>
+                Send a test email to me
+              </button>
+            </form>{" "}
+            <small style={{ color: "var(--muted)" }}>Goes only to {ctx.email}, never to a brand.</small>
+          </div>
+        ) : (
+          <form action={connectInstantlyAction} style={{ fontSize: "0.88rem" }}>
+            <p style={{ marginTop: 0 }}>
+              Pick the inboxes the engine sends from. Inboxes on flagshipgrowth.com are never used. Connecting creates one
+              paused campaign in Instantly with no brands in it. Nothing sends until you tick Sending on.
+            </p>
+            {instantly.accounts.length === 0 && <p style={{ color: "#DC2626" }}>No inboxes found in Instantly.</p>}
+            {instantly.accounts.map((a) => {
+              const ok = instantly.sendable.some((s) => s.email === a.email);
+              const protectedInbox = isProtectedInbox(a.email);
+              return (
+                <label key={a.email} style={{ display: "block", color: ok ? "inherit" : "var(--muted)" }}>
+                  <input type="checkbox" name="inbox" value={a.email} defaultChecked={ok} disabled={!ok} /> {a.email}
+                  <small style={{ color: "var(--muted)" }}>
+                    {" "}
+                    {ok
+                      ? "active"
+                      : protectedInbox
+                        ? "your main domain, never used for cold email"
+                        : "not sendable (paused or erroring in Instantly)"}
+                    {a.warmupScore != null ? `, warmup score ${a.warmupScore}` : ""}
+                  </small>
+                </label>
+              );
+            })}
+            <button type="submit" style={{ marginTop: 8 }}>
+              Connect Instantly
+            </button>
+          </form>
+        )}
+        <hr style={{ margin: "14px 0", border: 0, borderTop: "1px solid var(--line, #e5e7eb)" }} />
+        <p style={{ margin: 0, fontSize: "0.88rem" }}>
+          {apolloConfigured() ? (
+            <small style={{ color: "var(--muted)" }}>
+              Emails are found automatically with Apollo as soon as a brand&apos;s audit is written (founder or CEO first,
+              then the e-commerce lead), and retried daily. Only emails Apollo marks verified are used.
+            </small>
+          ) : (
+            <small style={{ color: "#DC2626" }}>APOLLO_API_KEY isn&apos;t set in Netlify.</small>
+          )}
         </p>
       </section>
 

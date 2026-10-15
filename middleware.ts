@@ -17,6 +17,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/outbound/audit-queue", // same shared-secret check, for the outbound-audit agent
   "/api/outbound/audits", // same shared-secret check, for the outbound-audit agent
   "/api/outbound/replies", // same shared-secret check, for the sending tool's reply webhook
+  "/api/outbound/instantly-webhook", // same shared-secret check, set as a header on the Instantly webhook
   "/api/outbound/audit-image/(.*)", // public once the audit is approved; checks owner itself before that
   "/audit/(.*)", // prospect-facing audit page; only renders approved audits to anyone but owners
 ]);
