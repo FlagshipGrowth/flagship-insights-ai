@@ -2,6 +2,15 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getAuditByToken, type AuditFix } from "@/lib/outbound-audit";
 import { getUserContext, isOwner } from "@/lib/user-context";
+import {
+  BrandPartnersSection,
+  CaseStudiesSection,
+  ChannelsSection,
+  First30DaysSection,
+  FlagshipHeader,
+  PartnerBadges,
+  TeamSection,
+} from "./FlagshipSections";
 
 // The prospect-facing audit: the asset every Tier A/B outbound sequence links to. Anyone with the
 // link can view an approved audit (no sign-in); a draft or rejected one only renders for owners
@@ -34,25 +43,6 @@ function FixList({ title, fixes }: { title: string; fixes: AuditFix[] }) {
   );
 }
 
-function ChannelStrip({ walmart, tiktokShop }: { walmart: boolean | null; tiktokShop: boolean | null }) {
-  const cell = (label: string, on: boolean | null) => (
-    <div className="card" style={{ flex: "1 1 160px", padding: "10px 14px", borderColor: on === false ? "var(--accent-blue)" : undefined }}>
-      <small style={{ color: "var(--muted)" }}>{label}</small>
-      <div style={{ fontWeight: 700 }}>{on === true ? "Selling here" : on === false ? "Not selling here yet" : "Not checked"}</div>
-    </div>
-  );
-  return (
-    <section style={{ marginBottom: 28 }}>
-      <h2 style={{ fontSize: "1.15rem", marginBottom: 10 }}>Where you sell today</h2>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        {cell("Amazon", true)}
-        {cell("Walmart", walmart)}
-        {cell("TikTok Shop", tiktokShop)}
-      </div>
-    </section>
-  );
-}
-
 const fmtNum = (n: number | null) => (n === null ? "–" : n.toLocaleString());
 const fmtPrice = (n: number | null) => (n === null ? "–" : `$${n.toFixed(2)}`);
 
@@ -80,13 +70,15 @@ export default async function AuditPage({ params }: { params: Promise<{ token: s
         </div>
       )}
 
+      <FlagshipHeader companyName={audit.companyName} />
+
       <p style={{ margin: 0, fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted)" }}>
         {audit.kind === "launch" ? "Marketplace launch audit" : "Amazon listing audit"} · {audit.companyName} · {date}
       </p>
       <h1 style={{ fontSize: "2rem", lineHeight: 1.15, margin: "8px 0 14px" }}>{audit.headline}</h1>
       <p style={{ fontSize: "1.05rem", lineHeight: 1.6, marginTop: 0, marginBottom: 28 }}>{f.summary}</p>
 
-      <ChannelStrip walmart={audit.channels.walmart} tiktokShop={audit.channels.tiktokShop} />
+      <ChannelsSection walmart={audit.channels.walmart} tiktokShop={audit.channels.tiktokShop} />
 
       {(audit.hasMainImageConcept || audit.originalImageUrl) && (
         <section style={{ marginBottom: 28 }}>
@@ -188,15 +180,30 @@ export default async function AuditPage({ params }: { params: Promise<{ token: s
         </section>
       )}
 
+      <div style={{ borderTop: "1px solid var(--paper-2)", margin: "12px 0 36px" }} />
+      <p style={{ margin: "0 0 4px", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted)" }}>About Flagship Growth</p>
+      <h2 style={{ fontSize: "1.7rem", margin: "0 0 24px", lineHeight: 1.2 }}>
+        We treat your brand like our own, as an extension of your team.
+      </h2>
+      <CaseStudiesSection />
+      <First30DaysSection />
+      <BrandPartnersSection />
+      <TeamSection />
+
       <section className="card" style={{ background: "var(--ink)", color: "var(--paper)", marginBottom: 20 }}>
         <h2 style={{ fontSize: "1.2rem", marginTop: 0, color: "var(--paper)" }}>Want us to walk you through this?</h2>
         <p style={{ lineHeight: 1.5 }}>
-          Flagship Growth runs Amazon, Walmart and TikTok Shop for CPG brands. This is a small slice of what we look at
-          for our own clients. Grab 30 minutes and we&apos;ll go through what we&apos;d fix first.
+          Flagship Growth runs Amazon, Walmart and TikTok Shop for CPG brands. This audit is a small slice of what we look at
+          for our own clients. Grab 30 minutes, free, and we&apos;ll walk you through what we&apos;d fix first.
         </p>
         <a href={BOOKING_URL} style={{ display: "inline-block", background: "var(--accent-lime)", color: "var(--ink)", padding: "10px 18px", borderRadius: 999, fontWeight: 700, textDecoration: "none" }}>
           Book a call with Joey →
         </a>
+        <p style={{ margin: "14px 0 0", fontSize: "0.86rem", color: "var(--paper-2)" }}>
+          Or reach Joey directly: <a href="mailto:Joey@FlagshipGrowth.com" style={{ color: "var(--accent-lime)" }}>Joey@FlagshipGrowth.com</a> ·{" "}
+          <a href="tel:+19492334081" style={{ color: "var(--accent-lime)" }}>949.233.4081</a>
+        </p>
+        <PartnerBadges />
       </section>
       <p style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
         Based on public listing data and third-party estimates as of {date}. Figures are estimates, not guarantees.
