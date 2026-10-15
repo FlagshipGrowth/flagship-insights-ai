@@ -18,6 +18,8 @@ import {
 import { SIGNAL_KEYS, SIGNAL_LABELS, type ScoringWeights, type Tier } from "@/lib/outbound-scoring";
 import { TIER_TREATMENT } from "@/lib/outbound-sequence";
 import { getPilotStats, HELIUM10_COST_PER_CALL } from "@/lib/outbound-audit";
+import { getSettings, updateSettings } from "@/lib/outbound-sequencer";
+import { senderStatus } from "@/lib/outbound-sender";
 import { OutboundTierBadge } from "@/components/OutboundTierBadge";
 
 const TIERS: Tier[] = ["A", "B", "C"];
@@ -31,6 +33,38 @@ async function saveWeightsAction(formData: FormData) {
   const error = await saveWeightsAndRescore(weights, note, ctx.email);
   revalidatePath("/internal/crm/outbound");
   redirect(error ? `/internal/crm/outbound?weightsError=${encodeURIComponent(error)}` : "/internal/crm/outbound?weightsSaved=1");
+}
+
+async function saveSettingsAction(formData: FormData) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isOwner(ctx)) return;
+  await updateSettings(
+    {
+      sendingEnabled: formData.get("sendingEnabled") === "on",
+      requireApproval: formData.get("requireApproval") === "on",
+      reviewSampleSize: Number(formData.get("reviewSampleSize")),
+      dailyNewBrands: Number(formData.get("dailyNewBrands")),
+      dailyEmailCap: Number(formData.get("dailyEmailCap")),
+      monthlyToolSpend: Number(formData.get("monthlyToolSpend")),
+    },
+    ctx.email
+  );
+  revalidatePath("/internal/crm/outbound");
+}
+
+async function runDailyNowAction() {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isOwner(ctx)) return;
+  const origin = process.env.URL;
+  const secret = process.env.OUTBOUND_SYNC_SECRET;
+  if (!origin || !secret) redirect("/internal/crm/outbound?runError=OUTBOUND_SYNC_SECRET%20or%20URL%20is%20not%20set");
+  await fetch(`${origin}/.netlify/functions/outbound-daily-background`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${secret}` },
+  });
+  redirect("/internal/crm/outbound?runStarted=1");
 }
 
 async function addSuppressionAction(formData: FormData) {
@@ -68,7 +102,7 @@ function Stat({ label, value, href }: { label: string; value: number | string; h
 export default async function OutboundPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tier?: string; status?: string; weightsError?: string; weightsSaved?: string }>;
+  searchParams: Promise<{ tier?: string; status?: string; weightsError?: string; weightsSaved?: string; runStarted?: string; runError?: string }>;
 }) {
   const ctx = await getUserContext();
   if (!ctx) redirect("/onboarding");
@@ -84,7 +118,8 @@ export default async function OutboundPage({
     getWeightsHistory(),
     getSuppressions(),
   ]);
-  const pilot = await getPilotStats();
+  const [pilot, settings] = await Promise.all([getPilotStats(), getSettings()]);
+  const sender = senderStatus();
   const active = weightsHistory[0];
 
   return (
@@ -92,14 +127,71 @@ export default async function OutboundPage({
       <a href="/internal/crm" className="back-link">
         &larr; Back to CRM
       </a>
-      <h1 style={{ marginBottom: 4 }}>Outbound engine</h1>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 4 }}>
+        <h1 style={{ margin: 0 }}>Outbound engine</h1>
+        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+          <a href="/internal/crm/outbound/queue">Queue</a>
+          <a href="/internal/crm/outbound/report">Report</a>
+          <form action={runDailyNowAction}>
+            <button type="submit" style={{ background: "var(--paper-2)", color: "var(--ink)" }}>
+              Run daily step now
+            </button>
+          </form>
+        </div>
+      </header>
       <p style={{ color: "var(--muted)", marginTop: 0, marginBottom: 16, maxWidth: 760 }}>
         <small>
-          Brands sourced and scored by the outbound engine. A prospect becomes a CRM lead when it replies with interest
-          or when you push it to the pipeline. Phase 1 (scoring) is live. Audits, sending, A/B testing and reply
-          handling come in later phases, so for now prospects stop at "Scored".
+          Brands sourced, scored and audited by the outbound engine, then written into a sequence and sent. A prospect
+          becomes a CRM lead when it replies interested or when you push it to the pipeline.
         </small>
       </p>
+      {params.runStarted && <p>✅ Daily step started. New sequences show up in the queue within a few minutes.</p>}
+      {params.runError && <p style={{ color: "#DC2626" }}>⚠️ {params.runError}</p>}
+
+      <section className="card" style={{ marginBottom: 20 }}>
+        <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>Engine settings</h2>
+        <p style={{ marginTop: 0 }}>
+          <small style={{ color: sender.configured ? "var(--muted)" : "#DC2626" }}>
+            {sender.message} Sequences are still written and queued for review either way; nothing emails a prospect until
+            sending is on and a sending tool is connected.
+          </small>
+        </p>
+        <form action={saveSettingsAction} style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end", fontSize: "0.88rem" }}>
+          <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input type="checkbox" name="sendingEnabled" defaultChecked={settings.sendingEnabled} /> Sending on
+          </label>
+          <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input type="checkbox" name="requireApproval" defaultChecked={settings.requireApproval} /> Every message needs my approval
+          </label>
+          <label>
+            New brands / day
+            <br />
+            <input type="number" name="dailyNewBrands" min={0} max={500} defaultValue={settings.dailyNewBrands} style={{ width: 80 }} />
+          </label>
+          <label>
+            Emails / day cap
+            <br />
+            <input type="number" name="dailyEmailCap" min={0} max={2000} defaultValue={settings.dailyEmailCap} style={{ width: 80 }} />
+          </label>
+          <label>
+            Review sample (brands)
+            <br />
+            <input type="number" name="reviewSampleSize" min={1} max={100} defaultValue={settings.reviewSampleSize} style={{ width: 80 }} />
+          </label>
+          <label>
+            Monthly tool spend ($)
+            <br />
+            <input type="number" name="monthlyToolSpend" min={0} step={1} defaultValue={settings.monthlyToolSpend} style={{ width: 90 }} />
+          </label>
+          <button type="submit">Save</button>
+        </form>
+        <p style={{ marginBottom: 0 }}>
+          <small style={{ color: "var(--muted)" }}>
+            Ramp new brands/day up over 3-4 weeks as inboxes warm (the plan&apos;s 50-100+ is the target, not the start). Tool
+            spend feeds cost per booked call.
+          </small>
+        </p>
+      </section>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 20 }}>
         <Stat label="Prospects" value={summary.total} href="?" />

@@ -139,7 +139,9 @@ alter table outbound_ab_tests
     add constraint outbound_ab_tests_winner_fk foreign key (winner_variant_id) references outbound_ab_variants(id) on delete set null;
 
 -- One row per planned or sent message. Email rows are sent by the engine; LinkedIn/Instagram
--- rows are a queue for a person to send by hand (sent_by records who).
+-- rows are a queue for a person to send by hand (sent_by records who). While approval is on
+-- (outbound_settings.require_approval) every new touch starts at needs_review; approving it moves
+-- it to queued, which is what the sender and the VA queue pick up.
 create table outbound_touches (
     id              uuid primary key default gen_random_uuid(),
     prospect_id     uuid not null references outbound_prospects(id) on delete cascade,
@@ -151,10 +153,13 @@ create table outbound_touches (
     body            text,
     variant_id      uuid references outbound_ab_variants(id) on delete set null,
     scheduled_for   date,
-    status          text not null default 'queued' check (status in ('queued', 'sent', 'skipped', 'cancelled')),
+    status          text not null default 'queued' check (status in ('needs_review', 'queued', 'sent', 'skipped', 'cancelled')),
+    reviewed_by     text,
     sending_inbox   text,
     sent_by         text,
     sent_at         timestamptz,
+    -- The sending tool's own id for the message, so replies and bounces can be matched back.
+    external_id     text,
     created_at      timestamptz not null default now()
 );
 create index outbound_touches_queue_idx on outbound_touches(status, scheduled_for);
@@ -168,7 +173,28 @@ create table outbound_replies (
     body             text,
     classification   text check (classification in ('interested', 'not_now', 'wrong_person', 'unsubscribe', 'other')),
     draft_response   text,
+    contact_id       uuid references outbound_contacts(id) on delete set null,
+    from_address     text,
+    summary          text,
+    external_id      text unique,
     received_at      timestamptz not null default now(),
-    handled_at       timestamptz
+    handled_at       timestamptz,
+    handled_by       text
 );
 create index outbound_replies_prospect_idx on outbound_replies(prospect_id);
+
+-- Engine-wide switches, one row. Sending starts OFF and approval starts ON: nothing reaches a
+-- prospect until Joey turns sending on and approves the messages (build plan: review a daily sample
+-- for the first 1-2 weeks, then automatic).
+create table outbound_settings (
+    id                    boolean primary key default true check (id),
+    sending_enabled       boolean not null default false,
+    require_approval      boolean not null default true,
+    review_sample_size    integer not null default 15,
+    daily_new_brands      integer not null default 10,
+    daily_email_cap       integer not null default 60,
+    monthly_tool_spend    numeric not null default 0,
+    updated_by            text,
+    updated_at            timestamptz not null default now()
+);
+insert into outbound_settings default values;

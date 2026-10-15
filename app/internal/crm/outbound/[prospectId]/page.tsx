@@ -13,6 +13,8 @@ import {
 import { SIGNAL_KEYS, SIGNAL_LABELS } from "@/lib/outbound-scoring";
 import { sequenceForTier, TIER_TREATMENT } from "@/lib/outbound-sequence";
 import { getAuditsForProspect, reviewAudit, HELIUM10_COST_PER_CALL } from "@/lib/outbound-audit";
+import { getProspectTouches } from "@/lib/outbound-sequencer";
+import { getProspectReplies, recordReply, triggerClassification, REPLY_CLASS_LABELS } from "@/lib/outbound-replies";
 import { OutboundTierBadge } from "@/components/OutboundTierBadge";
 import { ConfirmButton } from "@/components/ConfirmButton";
 
@@ -54,6 +56,25 @@ async function reviewAuditAction(prospectId: string, auditId: string, formData: 
   revalidatePath("/internal/crm/outbound");
 }
 
+async function logReplyAction(prospectId: string, formData: FormData) {
+  "use server";
+  const ctx = await getUserContext();
+  if (!ctx || !isOwner(ctx)) return;
+  const body = (formData.get("body") as string)?.trim();
+  const channel = formData.get("channel") as string;
+  if (!body || !["email", "linkedin", "instagram"].includes(channel)) return;
+  const result = await recordReply({
+    channel: channel as "email" | "linkedin" | "instagram",
+    body,
+    prospectId,
+    fromAddress: null,
+    receivedAt: null,
+    externalId: null,
+  });
+  if (!("error" in result)) await triggerClassification(result.replyId);
+  revalidatePath(`/internal/crm/outbound/${prospectId}`);
+}
+
 const FACT_LABELS: Record<string, string> = {
   mainImageWeak: "Main image weak",
   imageCount: "Image count",
@@ -84,6 +105,7 @@ export default async function ProspectPage({ params }: { params: Promise<{ prosp
   const { prospectId } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(prospectId)) notFound();
   const [p, owners, audits] = await Promise.all([getProspectDetail(prospectId), getOwnerUsers(), getAuditsForProspect(prospectId)]);
+  const [touches, replies] = await Promise.all([getProspectTouches(prospectId), getProspectReplies(prospectId)]);
   if (!p) notFound();
 
   const sequence = p.tier ? sequenceForTier(p.tier) : [];
@@ -319,11 +341,25 @@ export default async function ProspectPage({ params }: { params: Promise<{ prosp
         </section>
 
         <section className="card">
-          <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>Planned sequence</h2>
-          {p.tier ? (
+          <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>{touches.length > 0 ? "Messages" : "Planned sequence"}</h2>
+          {touches.length > 0 ? (
+            touches.map((t) => (
+              <details key={t.id} style={{ borderTop: "1px solid var(--paper-2)", padding: "6px 0", fontSize: "0.82rem" }}>
+                <summary style={{ cursor: "pointer" }}>
+                  <strong>Day {t.stepDay}</strong> · {t.channel} · {t.scheduledFor} ·{" "}
+                  <span className={`badge ${t.status === "sent" ? "badge-approved" : t.status === "needs_review" ? "badge-high" : "badge-pending"}`}>
+                    {t.status.replace("_", " ")}
+                  </span>
+                  {t.variantLabel && <span style={{ color: "var(--muted)" }}> · A/B {t.variantLabel}</span>}
+                </summary>
+                {t.subject && <p style={{ margin: "6px 0 2px", fontWeight: 600 }}>{t.subject}</p>}
+                <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", margin: "4px 0" }}>{t.body}</pre>
+              </details>
+            ))
+          ) : p.tier ? (
             <>
               <p style={{ marginTop: 0 }}>
-                <small style={{ color: "var(--muted)" }}>{TIER_TREATMENT[p.tier]}. Not sending yet (phase 3).</small>
+                <small style={{ color: "var(--muted)" }}>{TIER_TREATMENT[p.tier]}. Written when the brand is enrolled.</small>
               </p>
               <ol style={{ paddingLeft: 18, margin: 0, fontSize: "0.82rem" }}>
                 {sequence.map((s) => (
@@ -336,6 +372,40 @@ export default async function ProspectPage({ params }: { params: Promise<{ prosp
           ) : (
             <small style={{ color: "var(--muted)" }}>–</small>
           )}
+        </section>
+
+        <section className="card">
+          <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>Replies</h2>
+          {replies.length === 0 && <small style={{ color: "var(--muted)" }}>None yet.</small>}
+          {replies.map((r) => (
+            <div key={r.id} style={{ borderTop: "1px solid var(--paper-2)", padding: "8px 0", fontSize: "0.85rem" }}>
+              <span className={`badge ${r.classification === "interested" ? "badge-high" : "badge-pending"}`}>
+                {r.classification ? REPLY_CLASS_LABELS[r.classification] : "Classifying…"}
+              </span>{" "}
+              <small style={{ color: "var(--muted)" }}>
+                {r.channel} · {new Date(r.receivedAt).toLocaleString()}
+              </small>
+              {r.summary && <p style={{ margin: "4px 0" }}>{r.summary}</p>}
+              <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", margin: "4px 0" }}>{r.body}</pre>
+              {r.draftResponse && (
+                <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", background: "var(--paper-2)", padding: 8, borderRadius: 8 }}>
+                  {r.draftResponse}
+                </pre>
+              )}
+            </div>
+          ))}
+          <form action={logReplyAction.bind(null, p.id)} style={{ marginTop: 10 }}>
+            <small style={{ color: "var(--muted)" }}>Got a reply somewhere the engine can&apos;t see? Log it to stop the sequence.</small>
+            <textarea name="body" rows={3} placeholder="Paste their reply" style={{ width: "100%", fontFamily: "inherit", marginTop: 4 }} />
+            <div style={{ display: "flex", gap: 6 }}>
+              <select name="channel" defaultValue="email">
+                <option value="email">Email</option>
+                <option value="linkedin">LinkedIn</option>
+                <option value="instagram">Instagram</option>
+              </select>
+              <button type="submit">Log reply</button>
+            </div>
+          </form>
         </section>
       </div>
     </main>

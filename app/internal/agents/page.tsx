@@ -140,13 +140,13 @@ export default async function AgentsPage() {
           />
           <AgentCard
             name="Outbound Sales Engine"
-            status="Phase 2 of 5"
+            status="Built, not sending"
             statusVariant="pending"
-            description="Sources $20k+/mo Amazon and DTC brands with Helium10, scores each one 0-100 on listing gaps, channel gaps, BSR trend, revenue fit and trigger events, and sorts them into tiers A-C. Tier A/B brands get a deep audit: keyword gaps, a competitor benchmark, image stack, A+ and ads fixes, and an AI concept of their main image built from their real product photo. Every audit is a draft until it's approved. Nothing is sent to prospects yet."
+            description="Sources $20k+/mo Amazon and DTC brands with Helium10 and scores them into tiers A-C. Tier A/B brands get a deep audit with an AI main-image concept. Every brand then gets a ~4-week sequence written in Joey's voice: email from the engine, LinkedIn and Instagram queued for a person to send. It stops the moment they reply. Replies are triaged automatically: interested goes to the CRM and Slack, opt-outs are honored everywhere. A day-1 email A/B test always runs. Nothing reaches a prospect until sending is turned on and a sending tool is connected."
             facts={[
               { label: "Scope", value: "New-business prospects only, never clients, partners, warm leads or CRM leads" },
-              { label: "Trigger", value: "Sourcing agent posts to /api/outbound/ingest; audit agent claims Tier A/B from /api/outbound/audit-queue" },
-              { label: "Next gate", value: "10-brand audit pilot: Joey approves audit format and cost per audit" },
+              { label: "Trigger", value: "Weekdays: daily run writes and schedules sequences; sends spread every 15 min; weekly report Mondays" },
+              { label: "Blocked on", value: "Audit pilot sign-off, sending tool + warmed inboxes, email verifier" },
             ]}
             href="/internal/crm/outbound"
             linkLabel="Open Outbound →"
