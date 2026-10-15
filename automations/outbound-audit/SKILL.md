@@ -1,6 +1,6 @@
 ---
 name: outbound-audit
-description: Outbound Sales Engine audit run. Claims the next Tier A/B prospects from Flagship Insights, runs a Helium10 deep audit on each, generates an AI main-image concept from the brand's real product photo, and posts each audit back as a draft for Joey to approve.
+description: Outbound Sales Engine audit run. Claims the next Tier A/B prospects from Flagship Insights, runs a Helium10 deep audit on each, and posts each audit back as a draft for Joey to approve.
 ---
 
 Audit the next batch of outbound prospects for Flagship Growth and send each audit to Flagship Insights AI. This runs unattended with no prior context, so follow this exactly. You only research and write. Never email, DM or contact anyone, never change any Amazon listing, and never write to any account.
@@ -10,10 +10,12 @@ BATCH SIZE: `{{batch_size}}` brands (use 10 if blank; that's the pilot).
 WHAT GOOD LOOKS LIKE
 Each audit reads like a mini version of the work Flagship does for its own clients. Every finding must be specific to this brand and checkable on its live listing today: name the ASIN, the keyword, the competitor, the image slot. Nothing generic ("optimize your images", "improve your keywords"), no revenue promises, no claims you didn't verify. Short and concrete beats long.
 
+SENDING DATA TO THE APP
+Every call to the app goes through `python3 automations/outbound-post.py <endpoint> <json-file> [out-file]`, run from the repo root. Never put the secret in a command line or curl it yourself. Before the first call, save the OUTBOUND_SYNC_SECRET value from your task prompt (and nothing else) to `.outbound-sync-secret` at the repo root with the Write tool. That file is gitignored. If the prompt didn't include a secret and the file doesn't exist, stop and report it.
+
 STEP 1: CLAIM THE BATCH
-1. Get the secret: use the OUTBOUND_SYNC_SECRET value given in your task prompt. If the prompt didn't include one, read it with: cat "/Users/joeygiazzon/Projects/flagship-insights-ai/.outbound-sync-secret"
-2. POST https://flagship-insights-ai.netlify.app/api/outbound/audit-queue with header `Authorization: Bearer <secret>` and body `{"limit": <batch size>}`.
-3. The response's `prospects` are now claimed for you. Each has prospectId, companyName, tier, score, launchTrack, primaryAsin, website, category, estMonthlyRevenue, facts (what sourcing already verified) and researchNotes. If it's empty, report that and stop.
+1. Write `{"limit": <batch size>}` to a scratch file and run `python3 automations/outbound-post.py audit-queue <that file> <scratch>/queue.json`.
+2. The response's `prospects` are now claimed for you. Each has prospectId, companyName, tier, score, launchTrack, primaryAsin, website, category, estMonthlyRevenue, facts (what sourcing already verified) and researchNotes. If it's empty, report that and stop.
 
 STEP 2: DEEP AUDIT (Helium10 MCP, about 7 calls per brand)
 Load tools with ToolSearch "+helium10 listing competitors keywords" if they aren't loaded. Helium10 calls are a shared, limited budget (1,000/month across the team), so count every call you make per brand; you'll report the number. Aim for about 7:
@@ -26,12 +28,9 @@ Load tools with ToolSearch "+helium10 listing competitors keywords" if they aren
 7. search_product_targets_by_asin: sponsored ad visibility (who's advertising on and around them).
 If the brand has no primaryAsin, or retrieve_listing_by_asin fails, skip it (it stays claimed and is released automatically after a day) and say so in your report.
 
-STEP 3: MAIN IMAGE CONCEPT (Higgsfield MCP)
-1. Take the brand's real current main image URL from the listing (the large hi-res image). That URL goes in `originalImageUrl`.
-2. Import it as the reference (media_import_url), then generate one square concept with generate_image that keeps the exact same product: same packaging, label, colors, shape and count. Only change the presentation, following Amazon main-image rules: pure white background (RGB 255,255,255), product fills about 85% of the frame, sharp and well lit, no text, logos, badges, props or extra items that aren't in the box.
-3. Look at the result before using it. If the product changed in any way (a different label, a wrong flavor, an extra item, warped text), regenerate once; if it's still wrong, leave the concept out of this audit. Never generate a product that doesn't exist.
-4. Download the final image and base64-encode it for `mainImageBase64` (PNG or JPEG, under 4MB), with `mainImageContentType` set to match.
-5. Write `findings.mainImageNotes`: 1-2 sentences on what the concept fixes compared with today's image.
+STEP 3: MAIN IMAGE NOTES
+1. Take the brand's real current main image URL from the listing (the large hi-res image). That URL goes in `originalImageUrl`; the audit page shows it.
+2. Don't generate or edit any product image. Write `findings.mainImageNotes`: 1-2 sentences on exactly what to change about today's main image (framing, props, overlaid text, resolution, wrong variant), measured against Amazon's main-image rules and the competitors you benchmarked.
 
 STEP 4: WRITE THE AUDIT
 - `headline`: the single biggest finding, in one plain sentence with a number in it where you have one. Example shape: "You're missing 6 search terms worth ~48,000 searches a month that your top 2 competitors rank for."
@@ -45,7 +44,7 @@ STEP 4: WRITE THE AUDIT
 - `kind`: "deep" normally; "launch" if the launch opportunity is the main story.
 
 STEP 5: DELIVER (once per brand, as soon as that brand is done)
-POST https://flagship-insights-ai.netlify.app/api/outbound/audits with header `Authorization: Bearer <secret>` and JSON body:
+Write the audit to a JSON file and run `python3 automations/outbound-post.py audits <that file>`. Body:
 ```json
 {
   "prospectId": "<from the queue>",
@@ -53,8 +52,6 @@ POST https://flagship-insights-ai.netlify.app/api/outbound/audits with header `A
   "headline": "...",
   "helium10Calls": 7,
   "originalImageUrl": "https://m.media-amazon.com/images/I/....jpg",
-  "mainImageBase64": "<base64>",
-  "mainImageContentType": "image/png",
   "findings": {
     "summary": "...",
     "keywordGaps": [{"keyword": "...", "monthlySearchVolume": 12000, "competitorsRanking": "...", "brandRank": null}],
@@ -72,4 +69,4 @@ The response has a `previewUrl`. It stays a draft (only Joey can open it) until 
 REPORT
 At the end, list each brand with its headline, Helium10 calls used and preview URL, the total Helium10 calls for the run, and any brand you skipped and why.
 
-Do not touch git, do not deploy anything, and do not modify any files in the flagship-insights-ai repo other than reading the secret file. Never print the secret in your report.
+Do not touch git, do not deploy anything, and do not modify any files in the flagship-insights-ai repo other than writing the secret file. Never print the secret in your report.
