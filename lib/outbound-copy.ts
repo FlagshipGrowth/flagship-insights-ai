@@ -55,9 +55,26 @@ export function finalEmailBody(body: string): string {
   return ensureSignature(stripLinks(body));
 }
 
+// Facts about Flagship the writer may use, all from Joey's overview deck / flagshipgrowth.com.
+const COMPANY_FACTS = `Company facts you may use (nothing else about Flagship):
+- Flagship Growth runs Amazon, Walmart and TikTok Shop for consumer brands, with one team covering creative, ads, catalog, listings and inventory.
+- $650M+ in sales generated for brand partners; 200+ brand partners; 30+ years of combined marketplace experience.
+- Amazon SPN Verified Partner and TikTok Shop Certified Agency.`;
+
 const VOICE = `You write cold outreach for Joey Giazzon, co-founder of Flagship Growth (an agency that runs Amazon, Walmart and TikTok Shop for consumer brands).
 
-Voice: founder to founder. Direct, concise, casual, like Joey typed it himself in Slack. The point of every message is to be genuinely useful: share something specific and insightful about their Amazon listing that they can act on, whether or not they ever talk to us. Informative and helpful, never salesy or pushy. No pressure, no urgency tricks, no "just bumping this", no guilt, no hype words ("skyrocket", "game-changer", "unlock"). No corporate throat-clearing ("I hope this finds you well", "I wanted to reach out"), no buzzwords, no em-dash chains, no exclamation marks, no emojis. One clear, low-key ask per message at most. Plain text only, no markdown, no bullet points.
+Voice: founder to founder, warm and human, like Joey wrote it himself. The point of every message is to be genuinely useful: share specific, insightful findings about their Amazon listing that they can act on, whether or not they ever talk to us. Informative and helpful, never salesy or pushy. No pressure, no urgency tricks, no "just bumping this", no guilt, no hype words ("skyrocket", "game-changer", "unlock"). No corporate throat-clearing ("I hope this finds you well", "I wanted to reach out"), no buzzwords, no em-dash chains, no emojis. Plain text only, no markdown or bold.
+
+Shape of every email (Joey, 2026-10-16):
+- Start with a friendly greeting on its own line: "Hey <first name>," or "Hey there," when there's no name. This overrides any opener instruction below.
+- Day 1 email, in this order:
+  1. One line saying who Joey is: co-founder of Flagship Growth, and what Flagship does (runs Amazon, Walmart and TikTok Shop for consumer brands).
+  2. One line saying we went through their Amazon listing and a few things stood out.
+  3. 2-3 specific callouts from their audit, each on its own line starting with "- ". Each callout names what we saw and what it's costing them, in plain words.
+  4. One line of credibility about the team, using only the company facts and allowed proof given below.
+  5. The ask, then the opt-out line.
+  Keep it to 110-170 words.
+- Follow-ups: a greeting, then one new thing each time. Use a different audit callout not used before, a relevant result from the allowed proof, or a short note on how the team works (one team covering Amazon, Walmart and TikTok Shop; creative, ads, catalog and inventory under one roof). 50-90 words. The breakup email is under 50 words.
 
 Hard rules:
 - Never invent a number, result, client name, quote or fact. Only use what's in the brand data and the allowed proof below. If a message genuinely needs something you don't have, write [NEEDS JOEY: what's missing] inline.
@@ -66,7 +83,7 @@ Hard rules:
 - Lead with Amazon listing fixes from the audit. Don't pitch a retainer or services. The ask is to reply: offer to send the full audit (a few more fixes like this one) and, with no pressure, a free walkthrough call.
 - No links or URLs anywhere in an email, ever: not the audit, not a booking link, not a website. Links in cold email hurt delivery. Joey sends the audit link himself when they reply. This rule overrides any instruction below that mentions a link.
 - Each email gives real value in its own words: name the specific finding, say what it's costing them in plain terms, and say what the fix is. The reader should learn something even if they never reply.
-- Emails have no sign-off and no signature: don't write "Joey", "Best" or a name at the end. The same signature is added to every email automatically. First email under 90 words; follow-ups under 70; the breakup under 40.
+- Emails have no sign-off and no signature: don't write "Joey", "Best" or a name at the end. The same signature is added to every email automatically.
 - Every email ends with one short line letting them opt out, like "If it's not relevant, just say so and I'll stop here." Never on LinkedIn or Instagram.
 - LinkedIn connection notes are under 280 characters with no pitch and no link. Instagram DMs are casual, under 60 words, about their product or content.`;
 
@@ -99,6 +116,12 @@ export interface WrittenTouch {
 
 function auditDigest(f: AuditFindings): string {
   const parts = [`Summary: ${f.summary}`];
+  if (f.opportunities.length)
+    parts.push(
+      `Top opportunities (best callouts, already in plain English):\n${f.opportunities
+        .map((o) => `- ${o.title}: saw ${o.whatWeSaw}; matters because ${o.whyItMatters}; fix: ${o.theFix}`)
+        .join("\n")}`
+    );
   if (f.keywordGaps.length)
     parts.push(
       `Keyword gaps: ${f.keywordGaps
@@ -110,6 +133,8 @@ function auditDigest(f: AuditFindings): string {
     ["Image stack fixes", f.imageStackFixes],
     ["A+ fixes", f.aPlusFixes],
     ["Ads gaps", f.adsGaps],
+    ["What reviews say", f.reviewInsights],
+    ["Pricing vs competitors", f.pricingNotes],
   ] as const)
     if (fixes.length) parts.push(`${label}: ${fixes.map((x) => `${x.title} (${x.detail})`).join("; ")}`);
   if (f.mainImageNotes) parts.push(`Main image concept: ${f.mainImageNotes}`);
@@ -153,7 +178,7 @@ export async function writeSequence(input: CopyInput): Promise<WrittenTouch[]> {
 
   const result = await callStructured<{ touches: { day: number; subject: string | null; body: string }[] }>({
     system: VOICE,
-    prompt: `${brand}\n\n${audit}\n\n${proofPromptFor(input.category)}\n\nWrite every message in this sequence, one per line of the plan, in order:\n${plan}\n\nFor the day 1 email follow these instructions exactly:\n${firstEmail}\n\nAll emails are one thread: only the day 1 email gets a subject; the rest have subject null. Each follow-up must add something new rather than repeat the last message. LinkedIn and Instagram messages have subject null.`,
+    prompt: `${brand}\n\n${audit}\n\n${proofPromptFor(input.category)}\n\n${COMPANY_FACTS}\n\nWrite every message in this sequence, one per line of the plan, in order:\n${plan}\n\nFor the day 1 email, apply these within the required shape (greeting first, 2-3 callouts, no links):\n${firstEmail}\n\nAll emails are one thread: only the day 1 email gets a subject; the rest have subject null. Each follow-up must add something new rather than repeat the last message. LinkedIn and Instagram messages have subject null.`,
     toolName: "write_sequence",
     toolDescription: "Return every message of the sequence, in plan order.",
     schema: {
