@@ -21,7 +21,7 @@ export const AB_VARIABLE_LABELS: Record<AbVariable, string> = {
 const STARTING_DEFAULTS: Record<AbVariable, string> = {
   subject: "Subject: 3-6 lowercase words naming their brand and the single biggest audit finding.",
   opener: "Open with the single most specific finding from their audit, no greeting fluff.",
-  cta: "Close by sharing the full audit link and offering, with no pressure, a free 20-minute walkthrough.",
+  cta: "Close by offering to send the full audit if they reply, and, with no pressure, a free 20-minute walkthrough. No links.",
   audit_hook: "Lead with the single biggest, most specific Amazon listing finding from their audit headline, with its number.",
 };
 
