@@ -4,7 +4,7 @@
 // threads them under the first email. Keyed by INSTANTLY_API_KEY (Netlify env).
 
 import { SEQUENCE_STEPS } from "./outbound-sequence";
-import { ensureSignature } from "./outbound-copy";
+import { finalEmailBody } from "./outbound-copy";
 
 const BASE = "https://api.instantly.ai/api/v2";
 
@@ -170,14 +170,20 @@ export async function createWebhook(campaignId: string, url: string, secret: str
   return r.id;
 }
 
-/** Plain text to the HTML Instantly expects in a body (line breaks as <br/>). */
+/** Plain text to the HTML Instantly expects: one <div> per line, an empty line as <div><br></div>.
+ * Instantly drops bare text that isn't inside an element (a first test email arrived as just the
+ * link, with every sentence gone), so every line has to be wrapped. */
 export function toHtml(text: string): string {
+  const esc = (t: string) =>
+    t
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1">$1</a>');
   return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1">$1</a>')
-    .replace(/\r?\n/g, "<br/>");
+    .split(/\r?\n/)
+    .map((line) => (line.trim() ? `<div>${esc(line)}</div>` : "<div><br></div>"))
+    .join("");
 }
 
 export interface LeadInput {
@@ -192,7 +198,7 @@ export interface LeadInput {
 
 export async function addLead(input: LeadInput): Promise<string> {
   const vars: Record<string, string> = { subject1: input.subject1 };
-  input.bodies.forEach((b, i) => (vars[`body${i + 1}`] = toHtml(ensureSignature(b))));
+  input.bodies.forEach((b, i) => (vars[`body${i + 1}`] = toHtml(finalEmailBody(b))));
   const r = await call<{ id: string }>("POST", "/leads", {
     campaign: input.campaignId,
     email: input.email,

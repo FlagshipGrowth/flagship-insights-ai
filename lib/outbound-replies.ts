@@ -127,8 +127,8 @@ Classes:
 - unsubscribe: asks to stop, remove them, not interested at all, or is hostile.
 - other: auto-replies, out-of-office, anything else.
 
-Draft response rules: Joey's voice, founder to founder, short, plain text, no fluff, signed "Joey". For interested, propose the call with ${BOOKING_URL}. For wrong_person, ask for an intro to the right person. For not_now, ask when to check back. For unsubscribe, write a one-line confirmation that they won't hear from us again. For other, an empty string.`,
-    prompt: `Brand: ${r.company_name}\nTheir reply (${r.channel}${r.from_address ? `, from ${r.from_address}` : ""}):\n"""\n${r.body}\n"""\n\nWhat Joey sent before:\n${threadText || "(not recorded)"}`,
+Draft response rules: Joey's voice, founder to founder, short, plain text, no fluff, signed "Joey". For interested, include their audit link exactly as given below (if there is one) and propose the call with ${BOOKING_URL}; links are fine here because they replied. For wrong_person, ask for an intro to the right person. For not_now, ask when to check back. For unsubscribe, write a one-line confirmation that they won't hear from us again. For other, an empty string.`,
+    prompt: `Brand: ${r.company_name}\n${r.audit_token ? `Their audit link: ${process.env.URL ?? ""}/audit/${r.audit_token}\n` : ""}Their reply (${r.channel}${r.from_address ? `, from ${r.from_address}` : ""}):\n"""\n${r.body}\n"""\n\nWhat Joey sent before:\n${threadText || "(not recorded)"}`,
     toolName: "triage_reply",
     toolDescription: "Return the classification, a one-sentence summary, and the draft response.",
     schema: {

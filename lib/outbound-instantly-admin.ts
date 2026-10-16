@@ -17,7 +17,7 @@ import {
   type InstantlyAccount,
 } from "./instantly";
 import { getSettings } from "./outbound-sequencer";
-import { ensureSignature } from "./outbound-copy";
+import { finalEmailBody } from "./outbound-copy";
 
 // The owner-facing side of the Instantly connection (/internal/crm/outbound): connect once,
 // keep the campaign's on/off in step with "Sending on", and send a test email to yourself.
@@ -125,7 +125,7 @@ export async function sendTestToMe(to: string): Promise<string> {
   `) as any[];
   const first = p ? (p.preview_messages as any[]).find((m) => m.channel === "email") : null;
   const subject = `[TEST: ${p?.company_name ?? "engine"}] ${first?.subject ?? "Flagship outbound engine test"}`;
-  const body = ensureSignature(first?.body ?? "This is a test from the Flagship outbound engine. If you're reading this, Instantly can send.");
+  const body = finalEmailBody(first?.body ?? "This is a test from the Flagship outbound engine. If you're reading this, Instantly can send.");
   await sendTestEmail(sendable[0].email, to, subject, body);
   return `Sent from ${sendable[0].email} to ${to}${p ? ` (${p.company_name}'s first email)` : ""}.`;
 }
