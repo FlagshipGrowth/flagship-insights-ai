@@ -111,20 +111,32 @@ export async function syncCampaignState(sendingEnabled: boolean): Promise<void> 
   else await pauseCampaign(settings.instantlyCampaignId);
 }
 
-/** Sends the first email of the most recent preview to `to` (the signed-in owner, never a
- * prospect). From a sending inbox, never the owner's own address, so it shows exactly what a brand
- * would get. */
-export async function sendTestToMe(to: string): Promise<string> {
+/** The brand a test email is written for: the most recently previewed one, else the most recently
+ * audited one. */
+export async function pickTestProspect(): Promise<string | null> {
+  const sql = getDb();
+  const [p] = (await sql`
+    select id from outbound_prospects
+    where preview_at is not null
+       or exists (select 1 from outbound_audits a where a.prospect_id = outbound_prospects.id and a.status <> 'rejected')
+    order by preview_at desc nulls last, updated_at desc limit 1
+  `) as any[];
+  return p?.id ?? null;
+}
+
+/** Sends a brand's freshly written first email to `to` (the signed-in owner, never a prospect),
+ * from a sending inbox, so it shows exactly what a brand would get. The subject carries the time so
+ * Gmail doesn't fold repeated tests into one thread and hide the newest one as "trimmed content". */
+export async function sendTestToMe(to: string, prospectId: string | null): Promise<string> {
   const sendable = sendableAccounts(await listAccounts());
   if (sendable.length === 0) throw new Error("No active sending inbox in Instantly.");
   const sql = getDb();
-  const [p] = (await sql`
-    select company_name, preview_messages from outbound_prospects
-    where preview_status = 'ready' and jsonb_array_length(preview_messages) > 0
-    order by preview_at desc limit 1
-  `) as any[];
-  const first = p ? (p.preview_messages as any[]).find((m) => m.channel === "email") : null;
-  const subject = `[TEST: ${p?.company_name ?? "engine"}] ${first?.subject ?? "Flagship outbound engine test"}`;
+  const [p] = prospectId
+    ? ((await sql`select company_name, preview_messages from outbound_prospects where id = ${prospectId}`) as any[])
+    : [];
+  const first = p && Array.isArray(p.preview_messages) ? (p.preview_messages as any[]).find((m) => m.channel === "email") : null;
+  const stamp = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
+  const subject = `[TEST ${stamp}: ${p?.company_name ?? "engine"}] ${first?.subject ?? "Flagship outbound engine test"}`;
   const body = finalEmailBody(first?.body ?? "This is a test from the Flagship outbound engine. If you're reading this, Instantly can send.");
   await sendTestEmail(sendable[0].email, to, subject, body);
   return `Sent from ${sendable[0].email} to ${to}${p ? ` (${p.company_name}'s first email)` : ""}.`;

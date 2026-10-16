@@ -21,7 +21,7 @@ import { getPilotStats, HELIUM10_COST_PER_CALL } from "@/lib/outbound-audit";
 import { getSettings, updateSettings } from "@/lib/outbound-sequencer";
 import { senderStatus } from "@/lib/outbound-sender";
 import { inboxState } from "@/lib/instantly";
-import { connectInstantly, getInstantlyOverview, sendTestToMe, syncCampaignState } from "@/lib/outbound-instantly-admin";
+import { connectInstantly, getInstantlyOverview, syncCampaignState } from "@/lib/outbound-instantly-admin";
 import { apolloConfigured } from "@/lib/outbound-email-finder";
 import { OutboundTierBadge } from "@/components/OutboundTierBadge";
 
@@ -81,13 +81,20 @@ async function sendTestAction() {
   "use server";
   const ctx = await getUserContext();
   if (!ctx || !isOwner(ctx)) return;
-  let msg: string;
-  try {
-    msg = `instantlyNote=${encodeURIComponent(await sendTestToMe(ctx.email))}`;
-  } catch (err) {
-    msg = `runError=${encodeURIComponent((err as Error).message)}`;
-  }
-  redirect(`/internal/crm/outbound?${msg}`);
+  // Writing a fresh draft is a Claude call, so it runs in a background function.
+  const origin = process.env.URL;
+  const secret = process.env.OUTBOUND_SYNC_SECRET;
+  if (!origin || !secret) redirect("/internal/crm/outbound?runError=OUTBOUND_SYNC_SECRET%20or%20URL%20is%20not%20set");
+  await fetch(`${origin}/.netlify/functions/outbound-test-email-background`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+    body: JSON.stringify({ to: ctx.email }),
+  });
+  redirect(
+    `/internal/crm/outbound?instantlyNote=${encodeURIComponent(
+      `Writing a fresh draft with the current rules and sending it to ${ctx.email}. It arrives in about a minute, with the time in the subject.`
+    )}`
+  );
 }
 
 async function runDailyNowAction() {
