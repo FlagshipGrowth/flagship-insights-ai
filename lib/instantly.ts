@@ -90,6 +90,27 @@ export function sendableAccounts(accounts: InstantlyAccount[]): InstantlyAccount
   return accounts.filter((a) => ["ready", "paused"].includes(inboxState(a).state));
 }
 
+/** Sending inboxes get the same setup: Joey's name, fast-but-safe warmup (Instantly adds 4 warmup
+ * emails a day up to 40), a 30/day campaign cap per inbox, and slow ramp so Instantly eases campaign
+ * sends up instead of starting at the cap. */
+export async function setupSendingInbox(email: string): Promise<void> {
+  await call("PATCH", `/accounts/${encodeURIComponent(email)}`, {
+    first_name: "Joey",
+    last_name: "Giazzon",
+    daily_limit: 30,
+    enable_slow_ramp: true,
+    warmup: { limit: 40, increment: "4" },
+  });
+}
+
+/** Keeps the campaign's daily cap and inbox list in step with the engine settings. */
+export async function updateCampaign(id: string, patch: { dailyLimit?: number; emailList?: string[] }): Promise<void> {
+  const body: Record<string, unknown> = {};
+  if (patch.dailyLimit !== undefined) body.daily_limit = Math.max(1, patch.dailyLimit);
+  if (patch.emailList && patch.emailList.length > 0) body.email_list = patch.emailList;
+  if (Object.keys(body).length > 0) await call("PATCH", `/campaigns/${id}`, body);
+}
+
 export async function resumeAccount(email: string): Promise<void> {
   await call("POST", `/accounts/${encodeURIComponent(email)}/resume`);
 }

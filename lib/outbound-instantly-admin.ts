@@ -5,6 +5,8 @@ import {
   createWebhook,
   enableWarmup,
   resumeAccount,
+  setupSendingInbox,
+  updateCampaign,
   getCampaign,
   instantlyConfigured,
   listAccounts,
@@ -66,6 +68,7 @@ export async function connectInstantly(chosen: string[]): Promise<{ error?: stri
   // Inboxes unused for a while are usually paused, often with warmup off: wake them up first.
   for (const a of sendable.filter((a) => a.status === 2)) await resumeAccount(a.email);
   await enableWarmup(sendable.filter((a) => a.warmupStatus !== 1).map((a) => a.email));
+  for (const a of sendable) await setupSendingInbox(a.email);
 
   const campaignId = await createEngineCampaign(
     sendable.map((a) => a.email),
@@ -89,10 +92,21 @@ export async function connectInstantly(chosen: string[]): Promise<{ error?: stri
   return { note: note ?? `Connected: campaign created with ${sendable.length} sending inboxes.` };
 }
 
-/** Keeps the Instantly campaign running only while "Sending on" is ticked. */
+/** Keeps the Instantly campaign in step with the engine settings: running only while "Sending on"
+ * is ticked, the daily cap matching "Emails / day cap", and every healthy inbox added (new inboxes,
+ * e.g. ones finished in Zapmail after connecting, join automatically; protected ones never do). */
 export async function syncCampaignState(sendingEnabled: boolean): Promise<void> {
   const settings = await getSettings();
   if (!instantlyConfigured() || !settings.instantlyCampaignId) return;
+  const sendable = sendableAccounts(await listAccounts());
+  for (const a of sendable.filter((a) => a.status === 2)) await resumeAccount(a.email);
+  const notWarming = sendable.filter((a) => a.warmupStatus !== 1);
+  await enableWarmup(notWarming.map((a) => a.email));
+  for (const a of notWarming) await setupSendingInbox(a.email);
+  await updateCampaign(settings.instantlyCampaignId, {
+    dailyLimit: settings.dailyEmailCap,
+    emailList: sendable.map((a) => a.email),
+  });
   if (sendingEnabled) await activateCampaign(settings.instantlyCampaignId);
   else await pauseCampaign(settings.instantlyCampaignId);
 }
