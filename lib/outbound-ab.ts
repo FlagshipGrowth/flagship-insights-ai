@@ -20,14 +20,14 @@ export const AB_VARIABLE_LABELS: Record<AbVariable, string> = {
 
 const STARTING_DEFAULTS: Record<AbVariable, string> = {
   subject: "Subject: 3-6 lowercase words naming their brand and the single biggest audit finding.",
-  opener: "Open with the single most specific finding from their audit, no greeting fluff.",
+  opener: "After the greeting and Joey's one-line intro, go straight to the most specific finding from their audit.",
   cta: "Close by offering to send the full audit if they reply, and, with no pressure, a free 20-minute walkthrough. No links.",
   audit_hook: "Lead with the single biggest, most specific Amazon listing finding from their audit headline, with its number.",
 };
 
 const STARTING_CHALLENGERS: Record<AbVariable, string> = {
   subject: "Subject: a short question about their category or competitor, without their brand name.",
-  opener: "Open with one sentence about something specific and recent at their brand, then the finding.",
+  opener: "After the greeting, one sentence about something specific and recent at their brand, then Joey's intro and the findings.",
   cta: "Close with a yes/no question: should I send over what we'd fix first?",
   audit_hook: "Lead with the main image: what today's image loses versus the top competitor's.",
 };
