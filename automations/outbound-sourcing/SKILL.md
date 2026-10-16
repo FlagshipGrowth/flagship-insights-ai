@@ -12,18 +12,21 @@ TARGETS
 - Do not filter out current clients, past contacts or opt-outs yourself. The server does that and tells you what it skipped. Do skip obvious mega-brands (household names doing $5M+/mo); they aren't the fit.
 
 STEP 1: SOURCE (Helium10 MCP)
-Load tools with ToolSearch "+helium10 search products market" if they aren't loaded. Helium10 calls are a shared, limited budget (1,000/month across the team), so keep sourcing plus pre-screen to about 2 calls per brand. Pull candidate products from target categories with search_products / get_market_products, filtered to estimated revenue $20k+/mo. Group by brand. Product titles often carry the brand name; scrub it out to get a clean brand name. Prefer brands with steady review velocity or a launch in the last 90 days.
+Load tools with ToolSearch "+helium10 search products market" if they aren't loaded. Helium10 calls are a shared, limited budget (1,000/month across the team), so keep sourcing plus pre-screen to about 3-4 calls per brand (the monthly budget covers this at 10 brands a run, 3 runs a week, alongside the audits). Pull candidate products from target categories with search_products / get_market_products, filtered to estimated revenue $20k+/mo. Group by brand. Product titles often carry the brand name; scrub it out to get a clean brand name. Prefer brands with steady review velocity or a launch in the last 90 days.
 
 STEP 2: PRE-SCREEN
-For each brand's best-selling ASIN, read the listing with Helium10 `retrieve_listing_by_asin` (1 call per brand; Amazon blocks direct page fetches, so don't spend time on WebFetch of amazon.com). Record only what you actually verified:
-- mainImageWeak (true if the main image is cluttered, low-res, poorly framed or not filling the frame), imageCount, hasAPlus, titleWeak (missing key terms, keyword-stuffed or unclear), keywordGaps (only if you checked competitors' terms), rating, reviewCount.
-- onWalmart / onTikTokShop: search walmart.com and TikTok Shop for the brand. Set false only if you looked and it isn't there.
-- bsrChange90dPct: % change in BSR over 90 days if you have the history (positive = rank number went up = losing share). If BSR is falling, check price history and stock. If a stockout, price change, seasonality or suppression explains it, set bsrDropExplained: true.
-- fundingWithin90d / launchWithin90d: search the web for recent funding or new product launches.
-Leave a field out entirely if you didn't verify it. A missing field scores as "no gap"; a wrong field scores as a gap that doesn't exist. Never guess.
+Scores come only from facts you verified, and a missing fact counts as "no gap". On 2026-10-16 a run that only read listing text scored every brand 9-19, so none qualified for an audit. Verify these for each brand's best-selling ASIN, about 3 Helium10 calls per brand:
+1. `retrieve_listing_by_asin` (1 call): titleWeak (missing key terms, keyword-stuffed or unclear), imageCount (count the image URLs), hasAPlus (true or false if the response shows A+ / enhanced content; leave it out if it doesn't say), rating, reviewCount. Amazon blocks direct page fetches, so don't WebFetch amazon.com.
+2. `analyze_product_images` on the main image (1 call): mainImageWeak = true if it flags clutter, low resolution, poor framing or the product not filling the frame.
+3. `get_asin_bsr_history` for the last 90 days (1 call): bsrChange90dPct = % change from 90 days ago to now (positive = the rank number went up = losing share). If it rose more than 20%, check `get_asin_price_history` for a price jump or a gap that looks like a stockout. If one of those explains it, or it's clearly seasonal, set bsrDropExplained: true.
+4. Web search, which costs no Helium10 calls:
+   - onWalmart: search "<brand> walmart.com". Set it to false only if you looked and they aren't selling there.
+   - onTikTokShop: search "<brand> TikTok Shop". Same rule.
+   - fundingWithin90d / launchWithin90d: search for news from the last 90 days.
+Leave a field out entirely if you didn't verify it. A wrong value scores a gap that doesn't exist, so never guess.
 
 STEP 3: FIND THE DECISION-MAKER
-Contacts are optional, but **the brand's website is essential**: right after you post, the server looks up a verified email with Apollo from the website's domain, and a brand with no verified email is never audited or contacted. Post the brand even if you find nobody. Find the founder, CEO, owner or director of ecommerce. Record full name, title, LinkedIn URL and the brand's Instagram handle. For email: only set emailVerified: true if a verifier confirmed it. A guessed pattern (first@brand.com) is emailVerified: false. Add one short personal detail per contact (a podcast they were on, a post, their background).
+Contacts are optional, but **the brand's website is essential**, and it must be one you confirmed with a web search in this run, never one from memory (a wrong domain means Apollo finds nobody or the wrong company): right after you post, the server looks up a verified email with Apollo from the website's domain, and a brand with no verified email is never audited or contacted. Post the brand even if you find nobody. Find the founder, CEO, owner or director of ecommerce. Record full name, title, LinkedIn URL and the brand's Instagram handle. For email: only set emailVerified: true if a verifier confirmed it. A guessed pattern (first@brand.com) is emailVerified: false. Add one short personal detail per contact (a podcast they were on, a post, their background).
 
 STEP 4: RESEARCH NOTES
 2-4 sentences per brand: the brand story, product line, recent news, and the single most specific listing finding you saw. Specific to this brand only, nothing generic.
