@@ -66,10 +66,37 @@ export function isProtectedInbox(email: string): boolean {
   return PROTECTED_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`));
 }
 
-/** Accounts allowed and healthy enough to send: not on a protected domain, active, and warmup
- * not banned or flagged. */
+export type InboxState = "ready" | "paused" | "protected" | "error" | "banned";
+
+/** Where an inbox stands for the engine, in plain words. Paused inboxes can still be picked:
+ * Connect resumes them. Connection/sending errors need a reconnect in Instantly; a banned or
+ * suspended warmup means the inbox is burnt. Instantly's codes: status 1 active, 2 paused,
+ * 3 maintenance, negative = error; warmup 1 active, 0 paused, -1 banned, -2 spam folder unknown,
+ * -3 permanent suspension. */
+export function inboxState(a: InstantlyAccount): { state: InboxState; label: string } {
+  if (isProtectedInbox(a.email)) return { state: "protected", label: "your main domain, never used for cold email" };
+  if (a.warmupStatus === -1 || a.warmupStatus === -3) return { state: "banned", label: "warmup banned or suspended by Instantly, don't use" };
+  if (a.status < 0) {
+    const why = a.status === -1 ? "connection error" : a.status === -2 ? "soft bounce error" : "sending error";
+    return { state: "error", label: `${why}: reconnect this inbox in Instantly first` };
+  }
+  const warm = a.warmupStatus === 1 ? "warmup on" : a.warmupStatus === 0 ? "warmup off (Connect turns it on)" : "warmup health unknown";
+  if (a.status === 2) return { state: "paused", label: `paused in Instantly (Connect resumes it), ${warm}` };
+  return { state: "ready", label: `active, ${warm}` };
+}
+
+/** Inboxes that can be put on the campaign (paused ones are resumed on connect). */
 export function sendableAccounts(accounts: InstantlyAccount[]): InstantlyAccount[] {
-  return accounts.filter((a) => !isProtectedInbox(a.email) && a.status === 1 && a.warmupStatus >= 0);
+  return accounts.filter((a) => ["ready", "paused"].includes(inboxState(a).state));
+}
+
+export async function resumeAccount(email: string): Promise<void> {
+  await call("POST", `/accounts/${encodeURIComponent(email)}/resume`);
+}
+
+export async function enableWarmup(emails: string[]): Promise<void> {
+  if (emails.length === 0) return;
+  await call("POST", "/accounts/warmup/enable", { emails: emails.slice(0, 100) });
 }
 
 /** The engine's campaign: 5 steps on the plan's day gaps, weekdays 9-5 Central, stop on reply. */

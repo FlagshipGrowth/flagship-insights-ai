@@ -20,7 +20,7 @@ import { TIER_TREATMENT } from "@/lib/outbound-sequence";
 import { getPilotStats, HELIUM10_COST_PER_CALL } from "@/lib/outbound-audit";
 import { getSettings, updateSettings } from "@/lib/outbound-sequencer";
 import { senderStatus } from "@/lib/outbound-sender";
-import { isProtectedInbox } from "@/lib/instantly";
+import { inboxState } from "@/lib/instantly";
 import { connectInstantly, getInstantlyOverview, sendTestToMe, syncCampaignState } from "@/lib/outbound-instantly-admin";
 import { apolloConfigured } from "@/lib/outbound-email-finder";
 import { OutboundTierBadge } from "@/components/OutboundTierBadge";
@@ -268,19 +268,21 @@ export default async function OutboundPage({
               paused campaign in Instantly with no brands in it. Nothing sends until you tick Sending on.
             </p>
             {instantly.accounts.length === 0 && <p style={{ color: "#DC2626" }}>No inboxes found in Instantly.</p>}
+            {instantly.accounts.length > 0 && instantly.sendable.length === 0 && (
+              <p style={{ color: "#DC2626" }}>
+                None of the {instantly.accounts.length} inboxes in Instantly can be used yet (reasons next to each). Cold email
+                needs inboxes on a domain other than flagshipgrowth.com. Add or reconnect them in Instantly, then reload this page.
+              </p>
+            )}
             {instantly.accounts.map((a) => {
-              const ok = instantly.sendable.some((s) => s.email === a.email);
-              const protectedInbox = isProtectedInbox(a.email);
+              const { state, label } = inboxState(a);
+              const ok = state === "ready" || state === "paused";
               return (
-                <label key={a.email} style={{ display: "block", color: ok ? "inherit" : "var(--muted)" }}>
+                <label key={a.email} style={{ display: "block", margin: "6px 0", color: ok ? "inherit" : "var(--muted)" }}>
                   <input type="checkbox" name="inbox" value={a.email} defaultChecked={ok} disabled={!ok} /> {a.email}
-                  <small style={{ color: "var(--muted)" }}>
+                  <small style={{ color: ok ? "var(--muted)" : "#DC2626" }}>
                     {" "}
-                    {ok
-                      ? "active"
-                      : protectedInbox
-                        ? "your main domain, never used for cold email"
-                        : "not sendable (paused or erroring in Instantly)"}
+                    {label}
                     {a.warmupScore != null ? `, warmup score ${a.warmupScore}` : ""}
                   </small>
                 </label>

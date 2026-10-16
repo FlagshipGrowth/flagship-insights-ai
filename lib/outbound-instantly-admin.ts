@@ -3,6 +3,8 @@ import {
   activateCampaign,
   createEngineCampaign,
   createWebhook,
+  enableWarmup,
+  resumeAccount,
   getCampaign,
   instantlyConfigured,
   listAccounts,
@@ -60,6 +62,10 @@ export async function connectInstantly(chosen: string[]): Promise<{ error?: stri
   const picked = new Set(chosen.map((e) => e.toLowerCase()));
   const sendable = sendableAccounts(await listAccounts()).filter((a) => picked.has(a.email.toLowerCase()));
   if (sendable.length === 0) return { error: "Pick at least one active sending inbox." };
+
+  // Inboxes unused for a while are usually paused, often with warmup off: wake them up first.
+  for (const a of sendable.filter((a) => a.status === 2)) await resumeAccount(a.email);
+  await enableWarmup(sendable.filter((a) => a.warmupStatus !== 1).map((a) => a.email));
 
   const campaignId = await createEngineCampaign(
     sendable.map((a) => a.email),
